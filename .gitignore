@@ -1,0 +1,95 @@
+# Smart Guide — Open Source Repository (.gitignore for public/)
+# Covers sg-api (Node.js/Fastify/PostgreSQL/Better Auth), sg-web (Expo/React Native),
+# Docker volumes, storage adapters, and local secrets.
+
+# ------------------------------------------------------------------------------
+# Dependencies & Package Managers
+# ------------------------------------------------------------------------------
+**/node_modules/
+**/.pnp
+**/.pnp.*
+**/npm-debug.*
+**/yarn-debug.*
+**/yarn-error.*
+**/pnpm-debug.log*
+
+# ------------------------------------------------------------------------------
+# Environment Variables & Secrets (keep .env.example templates tracked)
+# ------------------------------------------------------------------------------
+.env
+**/.env
+.env.*
+**/.env.*
+!.env.example
+!**/.env.example
+!**/.env.*.example
+
+# ------------------------------------------------------------------------------
+# Cryptographic Keys, Certificates & Mobile Store Credentials
+# ------------------------------------------------------------------------------
+*.key
+*.pem
+*.p8
+*.p12
+*.jks
+*.keystore
+*.mobileprovision
+
+# ------------------------------------------------------------------------------
+# Build Artifacts, Caches, Logs & Test Outputs
+# ------------------------------------------------------------------------------
+**/dist/
+**/build/
+**/web-build/
+**/*.log
+**/*.tsbuildinfo
+**/coverage/
+**/playwright-report/
+**/test-results/
+
+# ------------------------------------------------------------------------------
+# sg-web (Expo / React Native / Firebase)
+# ------------------------------------------------------------------------------
+sg-web/.expo/
+sg-web/ios/
+sg-web/android/
+sg-web/web-build/
+sg-web/expo-env.d.ts
+sg-web/.firebase/
+**/.kotlin/
+**/*.orig.*
+**/.metro-health-check*
+
+# ------------------------------------------------------------------------------
+# Self-Hosted Volumes, Databases & Local Storage
+# ------------------------------------------------------------------------------
+uploads/
+sg-api/uploads/
+pg_data/
+minio_data/
+.docker-data/
+caddy_data/
+caddy_config/
+backups/
+*.sqlite
+*.sqlite3
+*.sqlite*
+*.db
+*.db-wal
+*.db-shm
+*.bak
+
+# ------------------------------------------------------------------------------
+# OS & IDE Metadata
+# ------------------------------------------------------------------------------
+.DS_Store
+**/.DS_Store
+Thumbs.db
+**/Thumbs.db
+.idea/
+**/.idea/
+.vscode/*
+**/.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
