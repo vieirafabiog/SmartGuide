@@ -1,44 +1,64 @@
-// ==============================================================================
-// Tela de Login (Login Screen)
-// Interface simples, corporativa e com suporte a preenchimento rápido de teste
-// ==============================================================================
-
-import React, { useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Image,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { colors } from '../../constants/colors';
-import { APP_CONFIG } from '../../constants/app';
-import { useAuth } from '../../context/AuthContext';
 import { Footer } from '../../components/Footer';
+import { APP_CONFIG } from '../../constants/app';
+import { colors } from '../../constants/colors';
+import { useAuth } from '../../context/AuthContext';
+import { getPinnedApiUrl } from '../../services/serverConfig.service';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { signIn } = useAuth();
+  const {
+    instanceInfo,
+    serverUrl,
+    isLoading: authLoading,
+    signIn,
+    signUp,
+    signInWithProvider,
+  } = useAuth();
   const insets = useSafeAreaInsets();
 
   const topPadding = Platform.OS !== 'web' ? insets.top + 16 : 20;
   const bottomPadding = Platform.OS !== 'web' ? insets.bottom + 16 : 20;
 
+  const [isSignUpMode, setIsSignUpMode] = useState(false);
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleLogin = async () => {
-    if (!email.trim() || !password) {
-      setErrorMessage('Por favor, informe o e-mail e a senha.');
+  const pinnedApiUrl = getPinnedApiUrl();
+  const canSwitchServer = Platform.OS !== 'web' && !pinnedApiUrl;
+
+  useEffect(() => {
+    if (!authLoading && Platform.OS !== 'web' && !serverUrl && !pinnedApiUrl) {
+      router.replace('/(auth)/connect-server');
+    }
+  }, [authLoading, serverUrl, pinnedApiUrl, router]);
+
+  const showEmailPassword = instanceInfo?.authProviders.emailPassword ?? true;
+  const showGoogle = instanceInfo?.authProviders.google ?? false;
+  const showMicrosoft = instanceInfo?.authProviders.microsoft ?? false;
+  const allowPublicSignup = instanceInfo?.allowPublicSignup ?? false;
+
+  const handleSubmit = async () => {
+    if (!email.trim() || !password || (isSignUpMode && !name.trim())) {
+      setErrorMessage('Por favor, preencha todos os campos obrigatórios.');
       return;
     }
 
@@ -46,15 +66,40 @@ export default function LoginScreen() {
       setLoading(true);
       setErrorMessage(null);
 
-      const result = await signIn(email, password);
+      const result = isSignUpMode
+        ? await signUp(name, email, password)
+        : await signIn(email, password);
 
       if (result.success) {
         router.replace('/(tabs)');
       } else {
         setErrorMessage(result.error || 'Credenciais inválidas.');
       }
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Erro ao realizar login.');
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error ? err.message : 'Erro ao realizar autenticação.',
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSocialLogin = async (provider: 'google' | 'microsoft') => {
+    try {
+      setLoading(true);
+      setErrorMessage(null);
+      const result = await signInWithProvider(provider);
+      if (result.success) {
+        if (Platform.OS !== 'web') {
+          router.replace('/(tabs)');
+        }
+      } else {
+        setErrorMessage(result.error || 'Falha ao autenticar com provedor.');
+      }
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error ? err.message : 'Erro ao autenticar com provedor.',
+      );
     } finally {
       setLoading(false);
     }
@@ -73,64 +118,155 @@ export default function LoginScreen() {
           ]}
         >
           <View style={styles.card}>
-            {/* Cabeçalho do Card */}
             <View style={styles.header}>
               <Image
-                source={require('../../../assets/icon.png')}
-                style={{ width: 64, height: 64, marginBottom: 12 }}
+                source={
+                  instanceInfo?.logoUrl
+                    ? { uri: instanceInfo.logoUrl }
+                    : require('../../../assets/icon.png')
+                }
+                style={styles.logoImage}
                 resizeMode="contain"
               />
-              <Text style={styles.title}>{APP_CONFIG.name}</Text>
+              <Text style={styles.title}>{instanceInfo?.name || APP_CONFIG.name}</Text>
               <Text style={styles.subtitle}>{APP_CONFIG.description}</Text>
             </View>
 
-            {/* Mensagem de Erro */}
             {errorMessage && (
               <View style={styles.errorBox}>
                 <Text style={styles.errorText}>{errorMessage}</Text>
               </View>
             )}
 
-            {/* Campo E-mail */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>E-mail Corporativo</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="seu.email@empresa.com"
-                placeholderTextColor={colors.textMuted}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                value={email}
-                onChangeText={setEmail}
-              />
-            </View>
+            {showEmailPassword && (
+              <>
+                {isSignUpMode && (
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Nome Completo</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Seu nome"
+                      placeholderTextColor={colors.textMuted}
+                      value={name}
+                      onChangeText={setName}
+                    />
+                  </View>
+                )}
 
-            {/* Campo Senha */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Senha de Acesso</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Digite sua senha"
-                placeholderTextColor={colors.textMuted}
-                secureTextEntry
-                value={password}
-                onChangeText={setPassword}
-              />
-            </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>E-mail Corporativo</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="seu.email@empresa.com"
+                    placeholderTextColor={colors.textMuted}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    value={email}
+                    onChangeText={setEmail}
+                  />
+                </View>
 
-            {/* Botão Entrar */}
-            <TouchableOpacity
-              style={styles.loginBtn}
-              onPress={handleLogin}
-              disabled={loading}
-              activeOpacity={0.8}
-            >
-              {loading ? (
-                <ActivityIndicator color={colors.textInverse} size="small" />
-              ) : (
-                <Text style={styles.loginBtnText}>Entrar no Sistema</Text>
-              )}
-            </TouchableOpacity>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Senha de Acesso</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Digite sua senha"
+                    placeholderTextColor={colors.textMuted}
+                    secureTextEntry
+                    value={password}
+                    onChangeText={setPassword}
+                  />
+                </View>
+
+                <TouchableOpacity
+                  style={styles.loginBtn}
+                  onPress={() => void handleSubmit()}
+                  disabled={loading}
+                  activeOpacity={0.8}
+                >
+                  {loading ? (
+                    <ActivityIndicator color={colors.textInverse} size="small" />
+                  ) : (
+                    <Text style={styles.loginBtnText}>
+                      {isSignUpMode ? 'Criar Conta' : 'Entrar no Sistema'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+
+                {allowPublicSignup && (
+                  <TouchableOpacity
+                    style={styles.toggleBtn}
+                    onPress={() => {
+                      setIsSignUpMode((prev) => !prev);
+                      setErrorMessage(null);
+                    }}
+                    disabled={loading}
+                  >
+                    <Text style={styles.toggleBtnText}>
+                      {isSignUpMode
+                        ? 'Já possui conta? Entrar'
+                        : 'Não possui conta? Cadastre-se'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
+
+            {(showGoogle || showMicrosoft) && (
+              <View style={styles.oauthSection}>
+                {showEmailPassword && (
+                  <View style={styles.dividerRow}>
+                    <View style={styles.dividerLine} />
+                    <Text style={styles.dividerText}>ou continue com</Text>
+                    <View style={styles.dividerLine} />
+                  </View>
+                )}
+
+                {showGoogle && (
+                  <TouchableOpacity
+                    style={styles.oauthBtn}
+                    onPress={() => void handleSocialLogin('google')}
+                    disabled={loading}
+                  >
+                    <Ionicons
+                      name="logo-google"
+                      size={18}
+                      color={colors.text}
+                      style={styles.oauthIcon}
+                    />
+                    <Text style={styles.oauthBtnText}>Entrar com Google</Text>
+                  </TouchableOpacity>
+                )}
+
+                {showMicrosoft && (
+                  <TouchableOpacity
+                    style={styles.oauthBtn}
+                    onPress={() => void handleSocialLogin('microsoft')}
+                    disabled={loading}
+                  >
+                    <Ionicons
+                      name="logo-microsoft"
+                      size={18}
+                      color={colors.text}
+                      style={styles.oauthIcon}
+                    />
+                    <Text style={styles.oauthBtnText}>Entrar com Microsoft</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            {canSwitchServer && (
+              <TouchableOpacity
+                style={styles.switchServerBtn}
+                onPress={() => router.push('/(auth)/connect-server')}
+                disabled={loading}
+              >
+                <Text style={styles.switchServerText}>
+                  Alterar servidor ({serverUrl || 'não configurado'})
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -172,19 +308,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
   },
-  logoBadge: {
-    width: 48,
-    height: 48,
-    backgroundColor: colors.primary,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
+  logoImage: {
+    width: 64,
+    height: 64,
     marginBottom: 12,
-  },
-  logoBadgeText: {
-    color: colors.textInverse,
-    fontWeight: 'bold',
-    fontSize: 22,
   },
   title: {
     fontSize: 22,
@@ -195,6 +322,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textSecondary,
     marginTop: 4,
+    textAlign: 'center',
   },
   errorBox: {
     backgroundColor: colors.dangerLight,
@@ -240,5 +368,60 @@ const styles = StyleSheet.create({
     color: colors.textInverse,
     fontWeight: 'bold',
     fontSize: 15,
+  },
+  toggleBtn: {
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  toggleBtnText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  oauthSection: {
+    marginTop: 16,
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.borderLight,
+  },
+  dividerText: {
+    marginHorizontal: 10,
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  oauthBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 3,
+    paddingVertical: 11,
+    marginTop: 8,
+    backgroundColor: colors.surface,
+  },
+  oauthIcon: {
+    marginRight: 8,
+  },
+  oauthBtnText: {
+    color: colors.text,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  switchServerBtn: {
+    marginTop: 18,
+    alignItems: 'center',
+  },
+  switchServerText: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    textDecorationLine: 'underline',
   },
 });

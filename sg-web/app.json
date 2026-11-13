@@ -12,10 +12,19 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.smartguide.app"
+      "bundleIdentifier": "com.smartguide.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Permitir uso da câmera para escanear o QR Code de conexão ao servidor Smart Guide.",
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
+      }
     },
     "android": {
       "package": "com.smartguide.app",
+      "permissions": [
+        "android.permission.CAMERA"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/android-icon-foreground.png"
@@ -40,7 +49,22 @@
       "expo-sqlite",
       "expo-font",
       "expo-sharing",
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Permitir uso da câmera para escanear o QR Code do servidor Smart Guide."
+        }
+      ],
+      "expo-web-browser"
     ]
   }
 }
