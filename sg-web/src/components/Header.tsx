@@ -7,10 +7,13 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, usePathname } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { colors } from '../constants/colors';
 import { useAuth } from '../context/AuthContext';
+import { LanguageSelector } from './LanguageSelector';
 
 export const Header: React.FC = () => {
+  const { t } = useTranslation();
   const router = useRouter();
   const pathname = usePathname();
   const { user, instanceInfo, signOut } = useAuth();
@@ -61,7 +64,7 @@ export const Header: React.FC = () => {
               pathname === '/' || pathname === '/(tabs)' ? styles.navBtnTextActive : null,
             ]}
           >
-            Treinamentos
+            {t('nav.catalog')}
           </Text>
         </TouchableOpacity>
 
@@ -75,7 +78,7 @@ export const Header: React.FC = () => {
               pathname?.includes('my-trainings') ? styles.navBtnTextActive : null,
             ]}
           >
-            Meus Treinamentos
+            {t('nav.myTrainings')}
           </Text>
         </TouchableOpacity>
 
@@ -90,7 +93,7 @@ export const Header: React.FC = () => {
                 pathname?.includes('admin') ? styles.navBtnTextActive : null,
               ]}
             >
-              Gerenciamento
+              {t('nav.admin')}
             </Text>
           </TouchableOpacity>
         )}
@@ -98,6 +101,7 @@ export const Header: React.FC = () => {
 
       {/* Informações do Usuário e Botão Sair */}
       <View style={styles.userSection}>
+        <LanguageSelector />
         {user && (
           <View style={styles.userInfo}>
             <Text style={styles.userName} numberOfLines={1}>
@@ -123,18 +127,14 @@ export const Header: React.FC = () => {
                     : null,
                 ]}
               >
-                {user.role === 'admin'
-                  ? 'ADMIN'
-                  : user.role === 'creator'
-                  ? 'CRIADOR'
-                  : 'COLABORADOR'}
+                {t(`roles.${user.role}`).toUpperCase()}
               </Text>
             </View>
           </View>
         )}
 
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <Text style={styles.logoutBtnText}>Sair</Text>
+          <Text style={styles.logoutBtnText}>{t('nav.signOut')}</Text>
         </TouchableOpacity>
       </View>
     </View>

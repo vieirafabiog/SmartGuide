@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { colors } from '../../constants/colors';
 import { useAuth } from '../../context/AuthContext';
 import { trainingsService } from '../../services/trainings.service';
@@ -27,6 +28,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { offlineService } from '../../services/offline.service';
 
 export default function HomeScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { user } = useAuth();
   const { width } = useWindowDimensions();
@@ -192,9 +194,7 @@ export default function HomeScreen() {
       <View style={styles.banner}>
         <View>
           <Text style={styles.greetingTitle}>Olá, {user?.name || 'Colaborador'} 👋</Text>
-          <Text style={styles.greetingSubtitle}>
-            Acesse seus treinamentos corporativos e continue seu desenvolvimento.
-          </Text>
+          <Text style={styles.greetingSubtitle}>{t('catalog.subtitle')}</Text>
         </View>
 
         {/* Botão de Criação para Administradores e Criadores */}
@@ -205,7 +205,7 @@ export default function HomeScreen() {
             activeOpacity={0.8}
           >
             <Ionicons name="add" size={18} color={colors.textInverse} />
-            <Text style={styles.newTrainingBtnText}>Novo Treinamento</Text>
+            <Text style={styles.newTrainingBtnText}>{t('training.create.title')}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -214,9 +214,7 @@ export default function HomeScreen() {
       {isOfflineMode && (
         <View style={styles.offlineBanner}>
           <Ionicons name="cloud-offline" size={18} color="#FFF" />
-          <Text style={styles.offlineBannerText}>
-            Modo Offline ativo: exibindo os treinamentos baixados disponíveis no aparelho.
-          </Text>
+          <Text style={styles.offlineBannerText}>{t('catalog.offlineModeBanner')}</Text>
         </View>
       )}
 
@@ -227,7 +225,7 @@ export default function HomeScreen() {
           <Ionicons name="search" size={18} color={colors.textSecondary} style={{ marginRight: 8 }} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Pesquisar treinamentos por título..."
+            placeholder={t('catalog.searchPlaceholder')}
             placeholderTextColor={colors.textMuted}
             value={searchText}
             onChangeText={setSearchText}
@@ -252,7 +250,7 @@ export default function HomeScreen() {
             <Text
               style={[styles.pillText, selectedCategoryId === null && styles.pillTextActive]}
             >
-              Todas as Categorias
+              {t('catalog.allCategories')}
             </Text>
           </TouchableOpacity>
 
@@ -280,15 +278,13 @@ export default function HomeScreen() {
       {loading ? (
         <View style={styles.loadingArea}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Carregando treinamentos...</Text>
+          <Text style={styles.loadingText}>{t('common.loading')}</Text>
         </View>
       ) : trainings.length === 0 ? (
         <View style={styles.emptyArea}>
           <Ionicons name="school-outline" size={48} color={colors.textMuted} />
-          <Text style={styles.emptyTitle}>Nenhum treinamento encontrado</Text>
-          <Text style={styles.emptySubtitle}>
-            Tente buscar com outro termo ou selecione outra categoria.
-          </Text>
+          <Text style={styles.emptyTitle}>{t('catalog.emptyTitle')}</Text>
+          <Text style={styles.emptySubtitle}>{t('catalog.emptySubtitle')}</Text>
         </View>
       ) : (
         <View style={styles.grid}>

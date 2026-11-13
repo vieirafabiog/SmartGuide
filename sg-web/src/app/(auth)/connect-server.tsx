@@ -3,6 +3,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Image,
@@ -17,7 +18,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Footer } from '../../components/Footer';
-import { APP_CONFIG } from '../../constants/app';
+import { LanguageSelector } from '../../components/LanguageSelector';
 import { colors } from '../../constants/colors';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -40,6 +41,7 @@ function extractServerUrlFromDeepLinkOrQr(rawValue: string): string {
 }
 
 export default function ConnectServerScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { serverUrl, refreshInstanceInfo } = useAuth();
@@ -134,16 +136,15 @@ export default function ConnectServerScreen() {
           ]}
         >
           <View style={styles.card}>
+            <LanguageSelector compact />
             <View style={styles.header}>
               <Image
                 source={require('../../../assets/icon.png')}
                 style={styles.logoImage}
                 resizeMode="contain"
               />
-              <Text style={styles.title}>{APP_CONFIG.name}</Text>
-              <Text style={styles.subtitle}>
-                Conecte-se ao servidor Smart Guide da sua organização
-              </Text>
+              <Text style={styles.title}>{t('byos.title')}</Text>
+              <Text style={styles.subtitle}>{t('byos.subtitle')}</Text>
             </View>
 
             {errorMessage && (
@@ -164,16 +165,16 @@ export default function ConnectServerScreen() {
                   style={styles.secondaryBtn}
                   onPress={() => setScannerOpen(false)}
                 >
-                  <Text style={styles.secondaryBtnText}>Cancelar Leitura</Text>
+                  <Text style={styles.secondaryBtnText}>{t('common.cancel')}</Text>
                 </TouchableOpacity>
               </View>
             ) : (
               <>
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>URL do Servidor</Text>
+                  <Text style={styles.label}>{t('byos.serverUrlLabel')}</Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="https://guide.suaempresa.com"
+                    placeholder={t('byos.serverUrlPlaceholder')}
                     placeholderTextColor={colors.textMuted}
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -192,7 +193,7 @@ export default function ConnectServerScreen() {
                   {loading ? (
                     <ActivityIndicator color={colors.textInverse} size="small" />
                   ) : (
-                    <Text style={styles.primaryBtnText}>Conectar ao Servidor</Text>
+                    <Text style={styles.primaryBtnText}>{t('byos.connectButton')}</Text>
                   )}
                 </TouchableOpacity>
 
@@ -208,7 +209,7 @@ export default function ConnectServerScreen() {
                       color={colors.text}
                       style={styles.btnIcon}
                     />
-                    <Text style={styles.secondaryBtnText}>Escanear QR Code</Text>
+                    <Text style={styles.secondaryBtnText}>{t('byos.scanQrButton')}</Text>
                   </TouchableOpacity>
                 )}
 

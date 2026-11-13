@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { colors } from '../../constants/colors';
 import { useAuth } from '../../context/AuthContext';
 import { trainingsService } from '../../services/trainings.service';
@@ -26,6 +27,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { offlineService } from '../../services/offline.service';
 
 export default function MyTrainingsScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { user } = useAuth();
   const { width } = useWindowDimensions();
@@ -216,10 +218,8 @@ export default function MyTrainingsScreen() {
       {/* Cabeçalho da Seção */}
       <View style={styles.headerBar}>
         <View>
-          <Text style={styles.screenTitle}>Meus Treinamentos</Text>
-          <Text style={styles.screenSubtitle}>
-            Gerencie os treinamentos que você criou, edite etapas e acompanhe publicações.
-          </Text>
+          <Text style={styles.screenTitle}>{t('myTrainings.title')}</Text>
+          <Text style={styles.screenSubtitle}>{t('myTrainings.subtitle')}</Text>
         </View>
 
         <TouchableOpacity
@@ -228,7 +228,7 @@ export default function MyTrainingsScreen() {
           activeOpacity={0.8}
         >
           <Ionicons name="add-circle" size={18} color={colors.textInverse} />
-          <Text style={styles.createBtnText}>Criar Treinamento</Text>
+          <Text style={styles.createBtnText}>{t('myTrainings.createButton')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -236,13 +236,11 @@ export default function MyTrainingsScreen() {
       {isOfflineMode && (
         <View style={styles.offlineBanner}>
           <Ionicons name="cloud-offline" size={18} color="#FFF" />
-          <Text style={styles.offlineBannerText}>
-            Modo Offline ativo: exibindo os treinamentos disponíveis no aparelho.
-          </Text>
+          <Text style={styles.offlineBannerText}>{t('catalog.offlineModeBanner')}</Text>
         </View>
       )}
 
-      {/* Filtros por Status (Todos, Publicados, Rascunhos, Arquivados) */}
+      {/* Filtros por Status */}
       <View style={styles.filterRow}>
         <TouchableOpacity
           style={[styles.statusTab, selectedStatus === 'all' && styles.statusTabActive]}
@@ -251,7 +249,7 @@ export default function MyTrainingsScreen() {
           <Text
             style={[styles.statusTabText, selectedStatus === 'all' && styles.statusTabTextActive]}
           >
-            Todos
+            {t('myTrainings.filterAll')}
           </Text>
         </TouchableOpacity>
 
@@ -265,7 +263,7 @@ export default function MyTrainingsScreen() {
               selectedStatus === 'published' && styles.statusTabTextActive,
             ]}
           >
-            Publicados
+            {t('myTrainings.filterPublished')}
           </Text>
         </TouchableOpacity>
 
@@ -279,7 +277,7 @@ export default function MyTrainingsScreen() {
               selectedStatus === 'draft' && styles.statusTabTextActive,
             ]}
           >
-            Rascunhos
+            {t('myTrainings.filterDraft')}
           </Text>
         </TouchableOpacity>
 
@@ -293,7 +291,7 @@ export default function MyTrainingsScreen() {
               selectedStatus === 'archived' && styles.statusTabTextActive,
             ]}
           >
-            Arquivados
+            {t('myTrainings.filterArchived')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -302,15 +300,13 @@ export default function MyTrainingsScreen() {
       {loading ? (
         <View style={styles.loadingArea}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Carregando seus treinamentos...</Text>
+          <Text style={styles.loadingText}>{t('common.loading')}</Text>
         </View>
       ) : trainings.length === 0 ? (
         <View style={styles.emptyCard}>
           <Ionicons name="folder-open-outline" size={48} color={colors.textMuted} />
-          <Text style={styles.emptyTitle}>Nenhum treinamento nesta categoria</Text>
-          <Text style={styles.emptySubtitle}>
-            Clique em &quot;Criar Treinamento&quot; para elaborar um novo curso com etapas e anexos.
-          </Text>
+          <Text style={styles.emptyTitle}>{t('myTrainings.emptyTitle')}</Text>
+          <Text style={styles.emptySubtitle}>{t('myTrainings.emptySubtitle')}</Text>
         </View>
       ) : (
         <View style={styles.grid}>

@@ -7,12 +7,14 @@ import React, { useEffect } from 'react';
 import { View, StyleSheet, Platform, ActivityIndicator } from 'react-native';
 import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { colors } from '../../constants/colors';
 import { useAuth } from '../../context/AuthContext';
 import { Header } from '../../components/Header';
 import { Footer } from '../../components/Footer';
 
 export default function TabsLayout() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { user, isLoading } = useAuth();
 
@@ -60,7 +62,7 @@ export default function TabsLayout() {
           <Tabs.Screen
             name="index"
             options={{
-              title: 'Treinamentos',
+              title: t('nav.catalog'),
               tabBarIcon: ({ color, size }) => (
                 <Ionicons name="grid-outline" color={color} size={size || 22} />
               ),
@@ -70,7 +72,7 @@ export default function TabsLayout() {
           <Tabs.Screen
             name="my-trainings"
             options={{
-              title: 'Meus Treinamentos',
+              title: t('nav.myTrainings'),
               tabBarIcon: ({ color, size }) => (
                 <Ionicons name="folder-outline" color={color} size={size || 22} />
               ),
@@ -80,7 +82,7 @@ export default function TabsLayout() {
           <Tabs.Screen
             name="admin"
             options={{
-              title: 'Gerenciamento',
+              title: t('nav.admin'),
               href: isAdmin ? '/admin' : null,
               tabBarIcon: ({ color, size }) => (
                 <Ionicons name="settings-outline" color={color} size={size || 22} />

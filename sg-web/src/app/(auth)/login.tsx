@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Image,
@@ -15,12 +16,14 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Footer } from '../../components/Footer';
+import { LanguageSelector } from '../../components/LanguageSelector';
 import { APP_CONFIG } from '../../constants/app';
 import { colors } from '../../constants/colors';
 import { useAuth } from '../../context/AuthContext';
 import { getPinnedApiUrl } from '../../services/serverConfig.service';
 
 export default function LoginScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const {
     instanceInfo,
@@ -58,7 +61,7 @@ export default function LoginScreen() {
 
   const handleSubmit = async () => {
     if (!email.trim() || !password || (isSignUpMode && !name.trim())) {
-      setErrorMessage('Por favor, preencha todos os campos obrigatórios.');
+      setErrorMessage(t('auth.emailPasswordRequired'));
       return;
     }
 
@@ -73,11 +76,11 @@ export default function LoginScreen() {
       if (result.success) {
         router.replace('/(tabs)');
       } else {
-        setErrorMessage(result.error || 'Credenciais inválidas.');
+        setErrorMessage(result.error || t('auth.invalidCredentials'));
       }
     } catch (err) {
       setErrorMessage(
-        err instanceof Error ? err.message : 'Erro ao realizar autenticação.',
+        err instanceof Error ? err.message : t('errors.unknownError'),
       );
     } finally {
       setLoading(false);
@@ -94,11 +97,11 @@ export default function LoginScreen() {
           router.replace('/(tabs)');
         }
       } else {
-        setErrorMessage(result.error || 'Falha ao autenticar com provedor.');
+        setErrorMessage(result.error || t('auth.oauthFailed'));
       }
     } catch (err) {
       setErrorMessage(
-        err instanceof Error ? err.message : 'Erro ao autenticar com provedor.',
+        err instanceof Error ? err.message : t('auth.oauthFailed'),
       );
     } finally {
       setLoading(false);
@@ -118,6 +121,7 @@ export default function LoginScreen() {
           ]}
         >
           <View style={styles.card}>
+            <LanguageSelector compact />
             <View style={styles.header}>
               <Image
                 source={
@@ -129,7 +133,7 @@ export default function LoginScreen() {
                 resizeMode="contain"
               />
               <Text style={styles.title}>{instanceInfo?.name || APP_CONFIG.name}</Text>
-              <Text style={styles.subtitle}>{APP_CONFIG.description}</Text>
+              <Text style={styles.subtitle}>{t('auth.welcomeSubtitle')}</Text>
             </View>
 
             {errorMessage && (
@@ -142,10 +146,10 @@ export default function LoginScreen() {
               <>
                 {isSignUpMode && (
                   <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Nome Completo</Text>
+                    <Text style={styles.label}>{t('auth.name')}</Text>
                     <TextInput
                       style={styles.input}
-                      placeholder="Seu nome"
+                      placeholder={t('auth.namePlaceholder')}
                       placeholderTextColor={colors.textMuted}
                       value={name}
                       onChangeText={setName}
@@ -154,10 +158,10 @@ export default function LoginScreen() {
                 )}
 
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>E-mail Corporativo</Text>
+                  <Text style={styles.label}>{t('auth.email')}</Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="seu.email@empresa.com"
+                    placeholder={t('auth.emailPlaceholder')}
                     placeholderTextColor={colors.textMuted}
                     autoCapitalize="none"
                     keyboardType="email-address"
@@ -167,10 +171,10 @@ export default function LoginScreen() {
                 </View>
 
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Senha de Acesso</Text>
+                  <Text style={styles.label}>{t('auth.password')}</Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="Digite sua senha"
+                    placeholder={t('auth.passwordPlaceholder')}
                     placeholderTextColor={colors.textMuted}
                     secureTextEntry
                     value={password}
@@ -188,7 +192,7 @@ export default function LoginScreen() {
                     <ActivityIndicator color={colors.textInverse} size="small" />
                   ) : (
                     <Text style={styles.loginBtnText}>
-                      {isSignUpMode ? 'Criar Conta' : 'Entrar no Sistema'}
+                      {isSignUpMode ? t('auth.signUpButton') : t('auth.signInButton')}
                     </Text>
                   )}
                 </TouchableOpacity>
@@ -203,9 +207,7 @@ export default function LoginScreen() {
                     disabled={loading}
                   >
                     <Text style={styles.toggleBtnText}>
-                      {isSignUpMode
-                        ? 'Já possui conta? Entrar'
-                        : 'Não possui conta? Cadastre-se'}
+                      {isSignUpMode ? t('auth.loginTab') : t('auth.signUpTab')}
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -217,7 +219,7 @@ export default function LoginScreen() {
                 {showEmailPassword && (
                   <View style={styles.dividerRow}>
                     <View style={styles.dividerLine} />
-                    <Text style={styles.dividerText}>ou continue com</Text>
+                    <Text style={styles.dividerText}>{t('auth.orContinueWith')}</Text>
                     <View style={styles.dividerLine} />
                   </View>
                 )}
@@ -234,7 +236,7 @@ export default function LoginScreen() {
                       color={colors.text}
                       style={styles.oauthIcon}
                     />
-                    <Text style={styles.oauthBtnText}>Entrar com Google</Text>
+                    <Text style={styles.oauthBtnText}>{t('auth.continueWithGoogle')}</Text>
                   </TouchableOpacity>
                 )}
 
@@ -250,7 +252,7 @@ export default function LoginScreen() {
                       color={colors.text}
                       style={styles.oauthIcon}
                     />
-                    <Text style={styles.oauthBtnText}>Entrar com Microsoft</Text>
+                    <Text style={styles.oauthBtnText}>{t('auth.continueWithMicrosoft')}</Text>
                   </TouchableOpacity>
                 )}
               </View>

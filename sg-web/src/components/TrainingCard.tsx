@@ -6,6 +6,7 @@
 import React from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { colors } from '../constants/colors';
 import { Training } from '../types/database';
 
@@ -24,6 +25,7 @@ export const TrainingCard: React.FC<TrainingCardProps> = ({
   showAdminActions = false,
   isDownloaded = false,
 }) => {
+  const { t } = useTranslation();
   const progress = training.user_progress ?? 0;
   const isCompleted = progress >= 100;
 
@@ -48,7 +50,10 @@ export const TrainingCard: React.FC<TrainingCardProps> = ({
             ]}
           >
             <Text style={styles.statusBadgeText}>
-              {training.status === 'draft' ? 'RASCUNHO' : 'ARQUIVADO'}
+              {(training.status === 'draft'
+                ? t('catalog.statusDraft')
+                : t('catalog.statusArchived')
+              ).toUpperCase()}
             </Text>
           </View>
         )}
@@ -56,7 +61,7 @@ export const TrainingCard: React.FC<TrainingCardProps> = ({
         {/* Badge de Etapas */}
         <View style={styles.stepsBadge}>
           <Text style={styles.stepsBadgeText}>
-            {training.total_steps || 0} {training.total_steps === 1 ? 'Etapa' : 'Etapas'}
+            {t('catalog.stepsCount', { count: training.total_steps || 0 })}
           </Text>
         </View>
 
@@ -64,7 +69,7 @@ export const TrainingCard: React.FC<TrainingCardProps> = ({
         {isDownloaded && (
           <View style={styles.offlineBadge}>
             <Ionicons name="cloud-done" size={11} color="#FFF" />
-            <Text style={styles.offlineBadgeText}>Offline</Text>
+            <Text style={styles.offlineBadgeText}>{t('catalog.downloadedBadge')}</Text>
           </View>
         )}
       </View>
@@ -91,7 +96,7 @@ export const TrainingCard: React.FC<TrainingCardProps> = ({
             <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
           </View>
           <Text style={styles.progressText}>
-            {isCompleted ? 'Concluído' : `${progress}% concluído`}
+            {isCompleted ? t('training.player.completedBadge') : `${progress}%`}
           </Text>
         </View>
 
@@ -99,13 +104,13 @@ export const TrainingCard: React.FC<TrainingCardProps> = ({
         <View style={styles.actionRow}>
           <TouchableOpacity style={styles.primaryBtn} onPress={onPress} activeOpacity={0.8}>
             <Text style={styles.primaryBtnText}>
-              {progress > 0 ? (isCompleted ? 'Rever' : 'Continuar') : 'Iniciar'}
+              {progress > 0 ? t('training.player.continueStudy') : t('training.player.startStudy')}
             </Text>
           </TouchableOpacity>
 
           {showAdminActions && onEditPress && (
             <TouchableOpacity style={styles.editBtn} onPress={onEditPress}>
-              <Text style={styles.editBtnText}>Editar</Text>
+              <Text style={styles.editBtnText}>{t('common.edit')}</Text>
             </TouchableOpacity>
           )}
         </View>
