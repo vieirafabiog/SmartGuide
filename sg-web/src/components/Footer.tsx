@@ -6,17 +6,18 @@
 import React from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { colors } from '../constants/colors';
-import { APP_CONFIG } from '../constants/app';
 
 export const Footer: React.FC = () => {
+  const { t } = useTranslation();
   // Altura da barra de navegação do sistema (botões home/back no Android)
   const insets = useSafeAreaInsets();
   const bottomPadding = Platform.OS !== 'web' ? insets.bottom : 0;
 
   return (
     <View style={[styles.footer, { paddingBottom: bottomPadding + 6, height: 38 + bottomPadding }]}>
-      <Text style={styles.footerText}>{APP_CONFIG.footerText}</Text>
+      <Text style={styles.footerText}>{t('footer.version')}</Text>
     </View>
   );
 };

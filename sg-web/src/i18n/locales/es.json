@@ -41,7 +41,8 @@
     "myTrainings": "Mis Capacitaciones",
     "admin": "Administración",
     "signOut": "Cerrar Sesión",
-    "apiDocs": "Docs API"
+    "apiDocs": "Docs API",
+    "subtitle": "Capacitaciones Corporativas"
   },
   "auth": {
     "welcomeTitle": "Inicia sesión en tu cuenta",
@@ -334,7 +335,8 @@
     "stepLabel": "Paso {{order}}",
     "attachmentLabel": "Adjunto: {{name}}",
     "generatedAt": "Generado el {{date}}",
-    "footerNotice": "Documento generado por Smart Guide"
+    "footerNotice": "Documento generado por Smart Guide",
+    "overviewTitle": "Objetivo y Visión General"
   },
   "errors": {
     "networkError": "Fallo de conexión con el servidor. Verifica tu red.",
@@ -354,6 +356,11 @@
       "RATE_LIMITED": "Demasiadas solicitudes. Espera unos instantes.",
       "INTERNAL_ERROR": "Error interno del servidor."
     }
+  },
+  "footer": {
+    "version": "Smart Guide © 2026 - Versión 1.0.0"
+  },
+  "home": {
+    "greeting": "Hola, {{name}} 👋"
   }
 }
-

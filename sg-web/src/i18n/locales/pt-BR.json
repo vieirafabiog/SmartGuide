@@ -41,7 +41,8 @@
     "myTrainings": "Meus Treinamentos",
     "admin": "Gerenciamento",
     "signOut": "Sair",
-    "apiDocs": "Docs API"
+    "apiDocs": "Docs API",
+    "subtitle": "Treinamentos Corporativos"
   },
   "auth": {
     "welcomeTitle": "Acesse sua conta",
@@ -334,7 +335,8 @@
     "stepLabel": "Etapa {{order}}",
     "attachmentLabel": "Anexo: {{name}}",
     "generatedAt": "Gerado em {{date}}",
-    "footerNotice": "Documento gerado pelo Smart Guide"
+    "footerNotice": "Documento gerado pelo Smart Guide",
+    "overviewTitle": "Objetivo e Visão Geral"
   },
   "errors": {
     "networkError": "Falha de conexão com o servidor. Verifique sua rede.",
@@ -354,6 +356,11 @@
       "RATE_LIMITED": "Muitas solicitações. Aguarde alguns instantes.",
       "INTERNAL_ERROR": "Erro interno no servidor."
     }
+  },
+  "footer": {
+    "version": "Smart Guide © 2026 - Versão 1.0.0"
+  },
+  "home": {
+    "greeting": "Olá, {{name}} 👋"
   }
 }
-

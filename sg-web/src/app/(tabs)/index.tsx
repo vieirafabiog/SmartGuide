@@ -193,7 +193,7 @@ export default function HomeScreen() {
       {/* Banner de Boas-Vindas */}
       <View style={styles.banner}>
         <View>
-          <Text style={styles.greetingTitle}>Olá, {user?.name || 'Colaborador'} 👋</Text>
+          <Text style={styles.greetingTitle}>{t('home.greeting', { name: user?.name || 'User' })}</Text>
           <Text style={styles.greetingSubtitle}>{t('catalog.subtitle')}</Text>
         </View>
 

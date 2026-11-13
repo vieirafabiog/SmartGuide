@@ -1,0 +1,10 @@
+**/node_modules
+**/dist
+**/.expo
+**/.git
+**/*.log
+.env
+pg_data
+uploads
+backups
+

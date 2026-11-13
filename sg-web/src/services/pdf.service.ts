@@ -627,7 +627,7 @@ function buildCoverHtml(content: PdfContent): string {
           sanitizeRichTextHtml(training.description)
             ? `
           <div class="cover-desc-box">
-            <div class="desc-title">Objetivo e Visão Geral</div>
+            <div class="desc-title">${escapeHtml(i18n.t('pdf.overviewTitle'))}</div>
             <div class="desc-text">${sanitizeRichTextHtml(training.description)}</div>
           </div>`
             : ''

@@ -4,7 +4,7 @@
 // ==============================================================================
 
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform, Image } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform, Image, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, usePathname } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -18,6 +18,8 @@ export const Header: React.FC = () => {
   const pathname = usePathname();
   const { user, instanceInfo, signOut } = useAuth();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isCompact = width < 640;
 
   const handleLogout = async () => {
     await signOut();
@@ -30,7 +32,7 @@ export const Header: React.FC = () => {
   const topPadding = Platform.OS !== 'web' ? insets.top : 0;
 
   return (
-    <View style={[styles.header, { paddingTop: topPadding + 10, height: 60 + topPadding }]}>
+    <View style={[styles.header, { paddingTop: topPadding + 10, minHeight: 60 + topPadding }]}>
       {/* Logotipo e Título */}
       <TouchableOpacity
         style={styles.logoContainer}
@@ -47,8 +49,8 @@ export const Header: React.FC = () => {
           resizeMode="contain"
         />
         <View>
-          <Text style={styles.appTitle}>{instanceInfo?.name || 'Smart Guide'}</Text>
-          <Text style={styles.appSubtitle}>Treinamentos Corporativos</Text>
+          <Text style={styles.appTitle} numberOfLines={1}>{instanceInfo?.name || 'Smart Guide'}</Text>
+          {!isCompact && <Text style={styles.appSubtitle}>{t('nav.subtitle')}</Text>}
         </View>
       </TouchableOpacity>
 
@@ -102,7 +104,7 @@ export const Header: React.FC = () => {
       {/* Informações do Usuário e Botão Sair */}
       <View style={styles.userSection}>
         <LanguageSelector />
-        {user && (
+        {user && !isCompact && (
           <View style={styles.userInfo}>
             <Text style={styles.userName} numberOfLines={1}>
               {user.name}
