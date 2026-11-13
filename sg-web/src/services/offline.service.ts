@@ -12,6 +12,8 @@ import { getApiAuthToken } from './apiClient';
 import { storageService } from './storage.service';
 import { trainingsService } from './trainings.service';
 import { stepsService } from './steps.service';
+import i18n from '../i18n';
+import { translateApiError } from '../i18n/errorMapper';
 
 const OFFLINE_INDEX_KEY = '@smartguide_offline_trainings_index';
 const OFFLINE_TRAINING_PREFIX = '@smartguide_offline_training_';
@@ -93,7 +95,7 @@ export const offlineService = {
     prefetchSteps?: TrainingStep[]
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      onProgress?.('Carregando informações do treinamento...', 5);
+      onProgress?.(i18n.t('offline.downloadingTrainings'), 5);
 
       // 1. Obtém dados do treinamento e das etapas (usa prefetch se disponível para poupar egress)
       let training = prefetchTraining;
@@ -109,12 +111,12 @@ export const offlineService = {
       }
 
       if (!training) {
-        return { success: false, error: 'Treinamento não encontrado para download.' };
+        return { success: false, error: i18n.t('offline.offlineUnavailable') };
       }
 
       const resolvedSteps = steps ?? [];
 
-      onProgress?.('Estruturando dados locais...', 15);
+      onProgress?.(i18n.t('offline.downloadingSteps'), 15);
 
       const mediaMap: OfflineAttachmentMap = {};
       let totalBytes = 0;
@@ -172,7 +174,7 @@ export const offlineService = {
         const progressPct = Math.round(25 + ((i + 1) / totalMedia) * 70);
 
         onProgress?.(
-          `Baixando mídia ${i + 1} de ${totalMedia} (${att.file_type === 'video' ? 'Vídeo' : 'Foto'})...`,
+          i18n.t('offline.downloadingMedia', { current: i + 1, total: totalMedia }),
           progressPct
         );
 
@@ -239,11 +241,11 @@ export const offlineService = {
         await AsyncStorage.setItem(OFFLINE_INDEX_KEY, JSON.stringify(ids));
       }
 
-      onProgress?.('Download concluído com sucesso!', 100);
+      onProgress?.(i18n.t('offline.downloadedSuccess'), 100);
       return { success: true };
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Erro no download offline:', err);
-      return { success: false, error: err.message || 'Falha ao baixar treinamento offline.' };
+      return { success: false, error: translateApiError(err, 'offline.downloadError') };
     }
   },
 

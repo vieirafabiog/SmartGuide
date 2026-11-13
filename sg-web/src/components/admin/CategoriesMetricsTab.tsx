@@ -11,12 +11,15 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { colors } from '@/constants/colors';
+import { translateApiError } from '@/i18n/errorMapper';
 import { adminService, AdminStats } from '@/services/admin.service';
 import { categoriesService } from '@/services/categories.service';
 import type { Category } from '@/types/database';
 
 export function CategoriesMetricsTab() {
+  const { t } = useTranslation();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,7 +40,7 @@ export function CategoriesMetricsTab() {
       setStats(statsData);
       setCategories(catsData);
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Erro ao carregar métricas e categorias.');
+      alert(translateApiError(err));
     } finally {
       setLoading(false);
     }
@@ -71,7 +74,7 @@ export function CategoriesMetricsTab() {
 
   const handleSaveCategory = async () => {
     if (!catName.trim()) {
-      alert('Informe o nome da categoria.');
+      alert(t('common.requiredField'));
       return;
     }
 
@@ -93,7 +96,7 @@ export function CategoriesMetricsTab() {
       setShowModal(false);
       await loadData();
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Erro ao salvar categoria.');
+      alert(translateApiError(err));
     } finally {
       setSaving(false);
     }
@@ -106,18 +109,19 @@ export function CategoriesMetricsTab() {
         setCategories((prev) => prev.filter((c) => c.id !== cat.id));
         await loadData();
       } catch (err: unknown) {
-        alert(err instanceof Error ? err.message : 'Erro ao excluir categoria.');
+        alert(translateApiError(err));
       }
     };
 
+    const confirmMsg = t('admin.metrics.deleteCategoryConfirm', { name: cat.name });
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm) {
-      if (window.confirm(`Deseja excluir a categoria "${cat.name}"?`)) {
+      if (window.confirm(confirmMsg)) {
         doDelete();
       }
     } else {
-      Alert.alert('Excluir Categoria', `Deseja excluir "${cat.name}"?`, [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Excluir', style: 'destructive', onPress: doDelete },
+      Alert.alert(t('common.delete'), confirmMsg, [
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('common.delete'), style: 'destructive', onPress: doDelete },
       ]);
     }
   };
@@ -128,40 +132,44 @@ export function CategoriesMetricsTab() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.sectionTitle}>Métricas da Instância</Text>
+      <Text style={styles.sectionTitle}>{t('admin.metrics.title')}</Text>
 
       <View style={styles.statsGrid}>
         <View style={styles.statCard}>
           <Text style={styles.statValue}>{stats?.totalUsers ?? 0}</Text>
-          <Text style={styles.statLabel}>Usuários ({stats?.activeUsers ?? 0} ativos)</Text>
+          <Text style={styles.statLabel}>
+            {t('admin.metrics.usersStat')} ({t('admin.metrics.usersActiveSub', { count: stats?.activeUsers ?? 0 })})
+          </Text>
         </View>
         <View style={styles.statCard}>
           <Text style={styles.statValue}>{stats?.totalTrainings ?? 0}</Text>
           <Text style={styles.statLabel}>
-            Treinamentos ({stats?.publishedTrainings ?? 0} publicados)
+            {t('admin.metrics.trainingsStat')} ({t('admin.metrics.trainingsPublishedSub', { count: stats?.publishedTrainings ?? 0 })})
           </Text>
         </View>
         <View style={styles.statCard}>
           <Text style={styles.statValue}>{stats?.totalSteps ?? 0}</Text>
-          <Text style={styles.statLabel}>Etapas Cadastradas</Text>
+          <Text style={styles.statLabel}>{t('admin.metrics.stepsStat')}</Text>
         </View>
         <View style={styles.statCard}>
           <Text style={styles.statValue}>{stats?.totalCategories ?? categories.length}</Text>
-          <Text style={styles.statLabel}>Categorias ({stats?.activeApiKeys ?? 0} chaves API)</Text>
+          <Text style={styles.statLabel}>
+            {t('admin.metrics.categoriesStat')} ({t('admin.metrics.apiKeysSub', { count: stats?.activeApiKeys ?? 0 })})
+          </Text>
         </View>
       </View>
 
       <View style={styles.catHeader}>
-        <Text style={styles.sectionTitle}>Categorias de Treinamento</Text>
+        <Text style={styles.sectionTitle}>{t('admin.metrics.categoriesTitle')}</Text>
         <TouchableOpacity style={styles.primaryBtn} onPress={openCreateModal}>
           <Ionicons name="add" size={16} color={colors.textInverse} />
-          <Text style={styles.primaryBtnText}>Nova Categoria</Text>
+          <Text style={styles.primaryBtnText}>{t('admin.metrics.newCategory')}</Text>
         </TouchableOpacity>
       </View>
 
       {categories.length === 0 ? (
         <View style={styles.emptyBox}>
-          <Text style={styles.emptyText}>Nenhuma categoria cadastrada.</Text>
+          <Text style={styles.emptyText}>{t('admin.metrics.emptyCategories')}</Text>
         </View>
       ) : (
         <View style={styles.catList}>
@@ -186,19 +194,19 @@ export function CategoriesMetricsTab() {
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>
-              {editingCat ? 'Editar Categoria' : 'Nova Categoria'}
+              {editingCat ? t('admin.metrics.editCategoryTitle') : t('admin.metrics.createCategoryTitle')}
             </Text>
 
-            <Text style={styles.fieldLabel}>Nome *</Text>
+            <Text style={styles.fieldLabel}>{t('admin.metrics.categoryName')}</Text>
             <TextInput
               style={styles.input}
               value={catName}
               onChangeText={setCatName}
-              placeholder="Ex: Segurança do Trabalho"
+              placeholder={t('admin.metrics.categoryName')}
               placeholderTextColor={colors.textMuted}
             />
 
-            <Text style={styles.fieldLabel}>Cor do Crachá</Text>
+            <Text style={styles.fieldLabel}>{t('admin.metrics.badgeColor')}</Text>
             <View style={styles.paletteRow}>
               {colors.badgeColors.map((hex) => (
                 <TouchableOpacity
@@ -219,7 +227,7 @@ export function CategoriesMetricsTab() {
                 onPress={() => setShowModal(false)}
                 disabled={saving}
               >
-                <Text style={styles.cancelBtnText}>Cancelar</Text>
+                <Text style={styles.cancelBtnText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.primaryBtn}
@@ -229,7 +237,7 @@ export function CategoriesMetricsTab() {
                 {saving ? (
                   <ActivityIndicator color={colors.textInverse} size="small" />
                 ) : (
-                  <Text style={styles.primaryBtnText}>Salvar</Text>
+                  <Text style={styles.primaryBtnText}>{t('common.save')}</Text>
                 )}
               </TouchableOpacity>
             </View>

@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { colors } from '@/constants/colors';
 import { useAuth } from '@/context/AuthContext';
 import { UsersTab } from '@/components/admin/UsersTab';
@@ -17,14 +18,15 @@ import { InstanceSettingsTab } from '@/components/admin/InstanceSettingsTab';
 
 type AdminTabKey = 'users' | 'metrics' | 'api' | 'settings';
 
-const ADMIN_TABS: { key: AdminTabKey; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { key: 'users', label: 'Usuários', icon: 'people-outline' },
-  { key: 'metrics', label: 'Métricas & Categorias', icon: 'bar-chart-outline' },
-  { key: 'api', label: 'API Keys & Docs', icon: 'key-outline' },
-  { key: 'settings', label: 'Instância & QR', icon: 'settings-outline' },
+const ADMIN_TABS: { key: AdminTabKey; labelKey: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { key: 'users', labelKey: 'admin.tabs.users', icon: 'people-outline' },
+  { key: 'metrics', labelKey: 'admin.tabs.metrics', icon: 'bar-chart-outline' },
+  { key: 'api', labelKey: 'admin.tabs.apiKeys', icon: 'key-outline' },
+  { key: 'settings', labelKey: 'admin.tabs.instance', icon: 'settings-outline' },
 ];
 
 export default function ManagementScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<AdminTabKey>('users');
@@ -33,12 +35,10 @@ export default function ManagementScreen() {
     return (
       <View style={styles.deniedContainer}>
         <Ionicons name="lock-closed-outline" size={44} color={colors.danger} />
-        <Text style={styles.deniedTitle}>Acesso Restrito</Text>
-        <Text style={styles.deniedText}>
-          Apenas administradores da instância podem acessar o painel de gerenciamento.
-        </Text>
+        <Text style={styles.deniedTitle}>{t('admin.restrictedTitle')}</Text>
+        <Text style={styles.deniedText}>{t('admin.restrictedMessage')}</Text>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.replace('/' as never)}>
-          <Text style={styles.backBtnText}>Voltar para o Início</Text>
+          <Text style={styles.backBtnText}>{t('admin.backHome')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -47,10 +47,8 @@ export default function ManagementScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.headerBlock}>
-        <Text style={styles.pageTitle}>Gerenciamento da Instância</Text>
-        <Text style={styles.pageSubtitle}>
-          Controle usuários, categorias, chaves de API e conexão mobile.
-        </Text>
+        <Text style={styles.pageTitle}>{t('admin.title')}</Text>
+        <Text style={styles.pageSubtitle}>{t('admin.subtitle')}</Text>
       </View>
 
       <View style={styles.tabBar}>
@@ -69,7 +67,7 @@ export default function ManagementScreen() {
                 color={isActive ? colors.primaryHover : colors.textSecondary}
               />
               <Text style={[styles.tabButtonText, isActive && styles.tabButtonTextActive]}>
-                {tab.label}
+                {t(tab.labelKey)}
               </Text>
             </TouchableOpacity>
           );

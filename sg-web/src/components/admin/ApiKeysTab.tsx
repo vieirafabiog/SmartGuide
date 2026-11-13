@@ -13,7 +13,9 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { colors } from '@/constants/colors';
+import { translateApiError } from '@/i18n/errorMapper';
 import { adminService } from '@/services/admin.service';
 import type { ApiKeyScope, ApiKeySummary } from '@/types/database';
 
@@ -24,6 +26,7 @@ const ALL_SCOPES: { value: ApiKeyScope; label: string }[] = [
 ];
 
 export function ApiKeysTab() {
+  const { t } = useTranslation();
   const router = useRouter();
   const [keys, setKeys] = useState<ApiKeySummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,11 +74,11 @@ export function ApiKeysTab() {
 
   const handleCreateKey = async () => {
     if (!newName.trim()) {
-      alert('Informe um nome para identificar a chave.');
+      alert(t('admin.apiKeys.nameRequired'));
       return;
     }
     if (selectedScopes.length === 0) {
-      alert('Selecione ao menos um escopo de permissão.');
+      alert(t('admin.apiKeys.scopesRequired'));
       return;
     }
 
@@ -91,7 +94,7 @@ export function ApiKeysTab() {
       setCopiedKey(false);
       setRevealedKey(res.plaintextKey);
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Erro ao gerar chave de API.');
+      alert(translateApiError(err));
     } finally {
       setCreating(false);
     }
@@ -102,7 +105,7 @@ export function ApiKeysTab() {
       const updated = await adminService.updateApiKey(item.id, { isActive: !item.isActive });
       setKeys((prev) => prev.map((k) => (k.id === updated.id ? updated : k)));
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Erro ao atualizar chave.');
+      alert(translateApiError(err));
     }
   };
 
@@ -112,18 +115,19 @@ export function ApiKeysTab() {
         await adminService.deleteApiKey(item.id);
         setKeys((prev) => prev.filter((k) => k.id !== item.id));
       } catch (err: unknown) {
-        alert(err instanceof Error ? err.message : 'Erro ao revogar chave.');
+        alert(translateApiError(err));
       }
     };
 
+    const confirmMsg = t('admin.apiKeys.revokeConfirm', { name: item.name });
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm) {
-      if (window.confirm(`Revogar permanentemente a chave "${item.name}"?`)) {
+      if (window.confirm(confirmMsg)) {
         doDelete();
       }
     } else {
-      Alert.alert('Revogar Chave de API', `Revogar permanentemente "${item.name}"?`, [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Revogar', style: 'destructive', onPress: doDelete },
+      Alert.alert(t('common.delete'), confirmMsg, [
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('common.delete'), style: 'destructive', onPress: doDelete },
       ]);
     }
   };
@@ -140,10 +144,8 @@ export function ApiKeysTab() {
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>API Keys & Integrações</Text>
-          <Text style={styles.subtitle}>
-            Gere chaves para integrações externas e consulte a especificação OpenAPI.
-          </Text>
+          <Text style={styles.title}>{t('admin.apiKeys.title')}</Text>
+          <Text style={styles.subtitle}>{t('admin.apiKeys.subtitle')}</Text>
         </View>
         <View style={styles.headerActions}>
           <TouchableOpacity
@@ -151,11 +153,11 @@ export function ApiKeysTab() {
             onPress={() => router.push('/swagger' as never)}
           >
             <Ionicons name="book-outline" size={16} color={colors.text} />
-            <Text style={styles.secondaryBtnText}>Docs Swagger</Text>
+            <Text style={styles.secondaryBtnText}>{t('admin.apiKeys.docsButton')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.primaryBtn} onPress={() => setShowCreateModal(true)}>
             <Ionicons name="key-outline" size={16} color={colors.textInverse} />
-            <Text style={styles.primaryBtnText}>Gerar Chave</Text>
+            <Text style={styles.primaryBtnText}>{t('admin.apiKeys.generateButton')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -164,7 +166,7 @@ export function ApiKeysTab() {
         <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: 24 }} />
       ) : keys.length === 0 ? (
         <View style={styles.emptyBox}>
-          <Text style={styles.emptyText}>Nenhuma chave de API cadastrada ainda.</Text>
+          <Text style={styles.emptyText}>{t('admin.apiKeys.empty')}</Text>
         </View>
       ) : (
         <View style={styles.list}>
@@ -172,7 +174,9 @@ export function ApiKeysTab() {
             <View key={item.id} style={styles.keyCard}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.keyName}>{item.name}</Text>
-                <Text style={styles.keyPrefix}>Prefixo: {item.keyPrefix}...</Text>
+                <Text style={styles.keyPrefix}>
+                  {t('admin.apiKeys.keyPrefix', { prefix: item.keyPrefix })}
+                </Text>
                 <View style={styles.scopesWrap}>
                   {item.scopes.map((sc) => (
                     <View key={sc} style={styles.scopeChip}>
@@ -201,18 +205,18 @@ export function ApiKeysTab() {
       <Modal visible={showCreateModal} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Nova Chave de API</Text>
+            <Text style={styles.modalTitle}>{t('admin.apiKeys.createModalTitle')}</Text>
 
-            <Text style={styles.fieldLabel}>Nome da integração *</Text>
+            <Text style={styles.fieldLabel}>{t('admin.apiKeys.integrationName')}</Text>
             <TextInput
               style={styles.input}
               value={newName}
               onChangeText={setNewName}
-              placeholder="Ex: Sincronização RH / ERP"
+              placeholder={t('admin.apiKeys.integrationName')}
               placeholderTextColor={colors.textMuted}
             />
 
-            <Text style={styles.fieldLabel}>Escopos permitidos</Text>
+            <Text style={styles.fieldLabel}>{t('admin.apiKeys.scopesLabel')}</Text>
             <View style={styles.scopesWrap}>
               {ALL_SCOPES.map((sc) => {
                 const active = selectedScopes.includes(sc.value);
@@ -236,7 +240,7 @@ export function ApiKeysTab() {
                 onPress={() => setShowCreateModal(false)}
                 disabled={creating}
               >
-                <Text style={styles.cancelBtnText}>Cancelar</Text>
+                <Text style={styles.cancelBtnText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.primaryBtn}
@@ -246,7 +250,7 @@ export function ApiKeysTab() {
                 {creating ? (
                   <ActivityIndicator color={colors.textInverse} size="small" />
                 ) : (
-                  <Text style={styles.primaryBtnText}>Gerar Chave</Text>
+                  <Text style={styles.primaryBtnText}>{t('admin.apiKeys.generateButton')}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -258,10 +262,8 @@ export function ApiKeysTab() {
       <Modal visible={!!revealedKey} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Copie sua Chave de API</Text>
-            <Text style={styles.warningText}>
-              Por segurança, este segredo é exibido apenas uma vez. Guarde-o em local seguro.
-            </Text>
+            <Text style={styles.modalTitle}>{t('admin.apiKeys.secretModalTitle')}</Text>
+            <Text style={styles.warningText}>{t('admin.apiKeys.secretWarning')}</Text>
 
             <TextInput
               style={[styles.input, styles.secretInput]}
@@ -280,12 +282,12 @@ export function ApiKeysTab() {
                     color={colors.text}
                   />
                   <Text style={styles.secondaryBtnText}>
-                    {copiedKey ? 'Copiado!' : 'Copiar'}
+                    {copiedKey ? t('common.copied') : t('common.copy')}
                   </Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity style={styles.primaryBtn} onPress={() => setRevealedKey(null)}>
-                <Text style={styles.primaryBtnText}>Entendido, fechar</Text>
+                <Text style={styles.primaryBtnText}>{t('admin.apiKeys.understoodClose')}</Text>
               </TouchableOpacity>
             </View>
           </View>

@@ -12,19 +12,15 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { colors } from '@/constants/colors';
+import { translateApiError } from '@/i18n/errorMapper';
 import { adminService } from '@/services/admin.service';
 import type { Profile, SupportedLocale, UserRole } from '@/types/database';
 
 interface UsersTabProps {
   currentUserId?: string;
 }
-
-const ROLE_LABELS: Record<UserRole, string> = {
-  admin: 'Administrador',
-  creator: 'Criador',
-  user: 'Colaborador',
-};
 
 const ROLE_COLORS: Record<UserRole, string> = {
   admin: colors.primary,
@@ -35,6 +31,7 @@ const ROLE_COLORS: Record<UserRole, string> = {
 const LOCALE_OPTIONS: SupportedLocale[] = ['pt-BR', 'en', 'es'];
 
 export function UsersTab({ currentUserId }: UsersTabProps) {
+  const { t } = useTranslation();
   const [users, setUsers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
@@ -74,7 +71,7 @@ export function UsersTab({ currentUserId }: UsersTabProps) {
       });
       setUsers(res.users);
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Erro ao carregar usuários.');
+      alert(translateApiError(err));
     } finally {
       setLoading(false);
     }
@@ -94,7 +91,7 @@ export function UsersTab({ currentUserId }: UsersTabProps) {
 
   const handleCreateUser = async () => {
     if (!newName.trim() || !newEmail.trim() || newPassword.length < 8) {
-      alert('Preencha nome, e-mail válido e senha com no mínimo 8 caracteres.');
+      alert(t('admin.users.requiredFields'));
       return;
     }
 
@@ -114,9 +111,9 @@ export function UsersTab({ currentUserId }: UsersTabProps) {
       setNewRole('user');
       setNewLocale('pt-BR');
       await loadUsers();
-      alert('Usuário criado com sucesso!');
+      alert(t('admin.users.createdSuccess'));
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Erro ao criar usuário.');
+      alert(translateApiError(err));
     } finally {
       setCreating(false);
     }
@@ -132,7 +129,7 @@ export function UsersTab({ currentUserId }: UsersTabProps) {
 
   const handleSaveEdit = async () => {
     if (!editingUser || !editName.trim()) {
-      alert('Informe o nome do usuário.');
+      alert(t('common.requiredField'));
       return;
     }
 
@@ -147,7 +144,7 @@ export function UsersTab({ currentUserId }: UsersTabProps) {
       setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
       setEditingUser(null);
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Erro ao atualizar usuário.');
+      alert(translateApiError(err));
     } finally {
       setSavingEdit(false);
     }
@@ -155,7 +152,7 @@ export function UsersTab({ currentUserId }: UsersTabProps) {
 
   const handleDeleteUser = (target: Profile) => {
     if (target.id === currentUserId) {
-      alert('Você não pode excluir sua própria conta.');
+      alert(t('admin.users.deleteSelfError'));
       return;
     }
 
@@ -164,18 +161,19 @@ export function UsersTab({ currentUserId }: UsersTabProps) {
         await adminService.deleteUser(target.id);
         setUsers((prev) => prev.filter((u) => u.id !== target.id));
       } catch (err: unknown) {
-        alert(err instanceof Error ? err.message : 'Erro ao excluir usuário.');
+        alert(translateApiError(err));
       }
     };
 
+    const confirmMsg = t('admin.users.deleteConfirm', { name: target.name, email: target.email });
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm) {
-      if (window.confirm(`Deseja excluir o usuário ${target.name} (${target.email})?`)) {
+      if (window.confirm(confirmMsg)) {
         doDelete();
       }
     } else {
-      Alert.alert('Excluir Usuário', `Deseja excluir ${target.name} (${target.email})?`, [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Excluir', style: 'destructive', onPress: doDelete },
+      Alert.alert(t('common.delete'), confirmMsg, [
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('common.delete'), style: 'destructive', onPress: doDelete },
       ]);
     }
   };
@@ -184,14 +182,12 @@ export function UsersTab({ currentUserId }: UsersTabProps) {
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Usuários da Instância</Text>
-          <Text style={styles.subtitle}>
-            Gerencie permissões de Administrador, Criador e Colaborador.
-          </Text>
+          <Text style={styles.title}>{t('admin.users.title')}</Text>
+          <Text style={styles.subtitle}>{t('admin.users.subtitle')}</Text>
         </View>
         <TouchableOpacity style={styles.primaryBtn} onPress={() => setShowCreateModal(true)}>
           <Ionicons name="person-add-outline" size={16} color={colors.textInverse} />
-          <Text style={styles.primaryBtnText}>Novo Usuário</Text>
+          <Text style={styles.primaryBtnText}>{t('admin.users.newUser')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -199,7 +195,7 @@ export function UsersTab({ currentUserId }: UsersTabProps) {
         <Ionicons name="search" size={18} color={colors.textSecondary} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Buscar por nome ou e-mail..."
+          placeholder={t('admin.users.searchPlaceholder')}
           placeholderTextColor={colors.textMuted}
           value={searchText}
           onChangeText={setSearchText}
@@ -215,7 +211,7 @@ export function UsersTab({ currentUserId }: UsersTabProps) {
       <View style={styles.filterRow}>
         {(['all', 'admin', 'creator', 'user'] as const).map((filter) => {
           const active = roleFilter === filter;
-          const label = filter === 'all' ? 'Todos' : ROLE_LABELS[filter];
+          const label = filter === 'all' ? t('admin.users.filterAll') : t(`roles.${filter}`);
           return (
             <TouchableOpacity
               key={filter}
@@ -234,7 +230,7 @@ export function UsersTab({ currentUserId }: UsersTabProps) {
         <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: 24 }} />
       ) : users.length === 0 ? (
         <View style={styles.emptyBox}>
-          <Text style={styles.emptyText}>Nenhum usuário encontrado para este filtro.</Text>
+          <Text style={styles.emptyText}>{t('admin.users.empty')}</Text>
         </View>
       ) : (
         <View style={styles.list}>
@@ -247,7 +243,7 @@ export function UsersTab({ currentUserId }: UsersTabProps) {
                     <Text style={styles.userName}>{item.name}</Text>
                     {!item.is_active && (
                       <View style={styles.inactiveBadge}>
-                        <Text style={styles.inactiveBadgeText}>INATIVO</Text>
+                        <Text style={styles.inactiveBadgeText}>{t('admin.users.inactiveBadge')}</Text>
                       </View>
                     )}
                   </View>
@@ -256,7 +252,7 @@ export function UsersTab({ currentUserId }: UsersTabProps) {
 
                 <View style={[styles.roleBadge, { backgroundColor: `${roleColor}20` }]}>
                   <Text style={[styles.roleBadgeText, { color: roleColor }]}>
-                    {ROLE_LABELS[item.role] || item.role}
+                    {t(`roles.${item.role}`)}
                   </Text>
                 </View>
 
@@ -280,29 +276,29 @@ export function UsersTab({ currentUserId }: UsersTabProps) {
       <Modal visible={showCreateModal} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Novo Usuário</Text>
+            <Text style={styles.modalTitle}>{t('admin.users.createModalTitle')}</Text>
 
-            <Text style={styles.fieldLabel}>Nome completo *</Text>
+            <Text style={styles.fieldLabel}>{t('admin.users.fullName')}</Text>
             <TextInput
               style={styles.input}
               value={newName}
               onChangeText={setNewName}
-              placeholder="Ex: Maria Silva"
+              placeholder={t('auth.namePlaceholder')}
               placeholderTextColor={colors.textMuted}
             />
 
-            <Text style={styles.fieldLabel}>E-mail *</Text>
+            <Text style={styles.fieldLabel}>{t('admin.users.email')}</Text>
             <TextInput
               style={styles.input}
               value={newEmail}
               onChangeText={setNewEmail}
-              placeholder="maria@empresa.com"
+              placeholder={t('auth.emailPlaceholder')}
               placeholderTextColor={colors.textMuted}
               autoCapitalize="none"
               keyboardType="email-address"
             />
 
-            <Text style={styles.fieldLabel}>Senha inicial (mínimo 8 caracteres) *</Text>
+            <Text style={styles.fieldLabel}>{t('admin.users.initialPassword')}</Text>
             <TextInput
               style={styles.input}
               value={newPassword}
@@ -312,7 +308,7 @@ export function UsersTab({ currentUserId }: UsersTabProps) {
               secureTextEntry
             />
 
-            <Text style={styles.fieldLabel}>Perfil de Acesso</Text>
+            <Text style={styles.fieldLabel}>{t('admin.users.roleLabel')}</Text>
             <View style={styles.optionRow}>
               {(['user', 'creator', 'admin'] as UserRole[]).map((role) => (
                 <TouchableOpacity
@@ -323,13 +319,13 @@ export function UsersTab({ currentUserId }: UsersTabProps) {
                   <Text
                     style={[styles.optionBtnText, newRole === role && styles.optionBtnTextActive]}
                   >
-                    {ROLE_LABELS[role]}
+                    {t(`roles.${role}`)}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            <Text style={styles.fieldLabel}>Idioma</Text>
+            <Text style={styles.fieldLabel}>{t('admin.users.localeLabel')}</Text>
             <View style={styles.optionRow}>
               {LOCALE_OPTIONS.map((loc) => (
                 <TouchableOpacity
@@ -352,7 +348,7 @@ export function UsersTab({ currentUserId }: UsersTabProps) {
                 onPress={() => setShowCreateModal(false)}
                 disabled={creating}
               >
-                <Text style={styles.cancelBtnText}>Cancelar</Text>
+                <Text style={styles.cancelBtnText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.primaryBtn}
@@ -362,7 +358,7 @@ export function UsersTab({ currentUserId }: UsersTabProps) {
                 {creating ? (
                   <ActivityIndicator color={colors.textInverse} size="small" />
                 ) : (
-                  <Text style={styles.primaryBtnText}>Criar Usuário</Text>
+                  <Text style={styles.primaryBtnText}>{t('admin.users.createButton')}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -374,9 +370,9 @@ export function UsersTab({ currentUserId }: UsersTabProps) {
       <Modal visible={!!editingUser} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Editar Usuário</Text>
+            <Text style={styles.modalTitle}>{t('admin.users.editModalTitle')}</Text>
 
-            <Text style={styles.fieldLabel}>Nome *</Text>
+            <Text style={styles.fieldLabel}>{t('admin.users.fullName')}</Text>
             <TextInput
               style={styles.input}
               value={editName}
@@ -384,7 +380,7 @@ export function UsersTab({ currentUserId }: UsersTabProps) {
               placeholderTextColor={colors.textMuted}
             />
 
-            <Text style={styles.fieldLabel}>Perfil de Acesso</Text>
+            <Text style={styles.fieldLabel}>{t('admin.users.roleLabel')}</Text>
             <View style={styles.optionRow}>
               {(['user', 'creator', 'admin'] as UserRole[]).map((role) => (
                 <TouchableOpacity
@@ -395,13 +391,13 @@ export function UsersTab({ currentUserId }: UsersTabProps) {
                   <Text
                     style={[styles.optionBtnText, editRole === role && styles.optionBtnTextActive]}
                   >
-                    {ROLE_LABELS[role]}
+                    {t(`roles.${role}`)}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            <Text style={styles.fieldLabel}>Idioma</Text>
+            <Text style={styles.fieldLabel}>{t('admin.users.localeLabel')}</Text>
             <View style={styles.optionRow}>
               {LOCALE_OPTIONS.map((loc) => (
                 <TouchableOpacity
@@ -419,7 +415,7 @@ export function UsersTab({ currentUserId }: UsersTabProps) {
             </View>
 
             <View style={styles.switchRow}>
-              <Text style={styles.fieldLabel}>Usuário ativo</Text>
+              <Text style={styles.fieldLabel}>{t('admin.users.activeSwitch')}</Text>
               <Switch
                 value={editActive}
                 onValueChange={setEditActive}
@@ -433,7 +429,7 @@ export function UsersTab({ currentUserId }: UsersTabProps) {
                 onPress={() => setEditingUser(null)}
                 disabled={savingEdit}
               >
-                <Text style={styles.cancelBtnText}>Cancelar</Text>
+                <Text style={styles.cancelBtnText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.primaryBtn}
@@ -443,7 +439,7 @@ export function UsersTab({ currentUserId }: UsersTabProps) {
                 {savingEdit ? (
                   <ActivityIndicator color={colors.textInverse} size="small" />
                 ) : (
-                  <Text style={styles.primaryBtnText}>Salvar</Text>
+                  <Text style={styles.primaryBtnText}>{t('admin.users.saveButton')}</Text>
                 )}
               </TouchableOpacity>
             </View>

@@ -16,6 +16,8 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Training, TrainingStep } from '../types/database';
 import { sanitizeRichTextHtml } from '../utils/htmlSanitizer';
 import { getSavedInstanceInfo } from './serverConfig.service';
+import i18n from '../i18n';
+import { formatLocalizedDate } from '../i18n/errorMapper';
 
 const LOGO_MODULE = require('../../assets/icon.png');
 
@@ -45,21 +47,9 @@ function toFileName(title: string): string {
   return clean || 'treinamento';
 }
 
-// Formata data e hora no padrão brasileiro (DD/MM/AAAA às HH:mm)
+// Formata data e hora respeitando o idioma ativo
 function formatDateTime(dateStr?: string): string {
-  if (!dateStr) return '-';
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    return `${day}/${month}/${year} às ${hours}:${minutes}`;
-  } catch {
-    return dateStr;
-  }
+  return formatLocalizedDate(dateStr);
 }
 
 // Converte URLs locais (file://) para Base64 no mobile para renderização garantida no PDF
@@ -570,12 +560,12 @@ function renderMiniHeader(content: PdfContent): string {
   `;
 }
 
-// Renderiza o rodapé com número de página (Página X de Y)
+// Renderiza o rodapé com número de página
 function renderPageFooter(pageNum: number, totalPages: number): string {
   return `
     <div class="page-footer">
-      <div class="page-footer-left">SmartGuide • Guia Oficial de Treinamento Corporativo</div>
-      <div class="page-footer-right">Página ${pageNum} de ${totalPages}</div>
+      <div class="page-footer-left">${escapeHtml(i18n.t('pdf.footerNotice'))}</div>
+      <div class="page-footer-right">${pageNum} / ${totalPages}</div>
     </div>
   `;
 }
@@ -593,7 +583,7 @@ function buildCoverHtml(content: PdfContent): string {
           ${logoSrc ? `<img class="cover-logo" src="${logoSrc}" alt="Logo" />` : ''}
           <div>
             <div class="brand-name">SMART GUIDE</div>
-            <div class="brand-sub">Guia Corporativo de Treinamento</div>
+            <div class="brand-sub">${escapeHtml(i18n.t('pdf.coverTagline'))}</div>
           </div>
         </div>
         ${
@@ -659,29 +649,29 @@ function buildCoverHtml(content: PdfContent): string {
       <div class="cover-footer">
         <div class="meta-grid-2x2">
           <div class="meta-cell">
-            <span class="meta-cell-label">Criado Por</span>
-            <span class="meta-cell-value">${escapeHtml(creatorName || 'Administrador')}</span>
+            <span class="meta-cell-label">${escapeHtml(i18n.t('training.share.creatorBadge'))}</span>
+            <span class="meta-cell-value">${escapeHtml(creatorName || i18n.t('roles.admin'))}</span>
           </div>
           <div class="meta-cell">
-            <span class="meta-cell-label">Data de Criação</span>
+            <span class="meta-cell-label">${escapeHtml(i18n.t('pdf.generatedAt', { date: formatDateTime(training.created_at) }))}</span>
             <span class="meta-cell-value">${formatDateTime(training.created_at)}</span>
           </div>
           <div class="meta-cell">
-            <span class="meta-cell-label">Última Modificação</span>
+            <span class="meta-cell-label">${escapeHtml(i18n.t('training.edit.detailsTab'))}</span>
             <span class="meta-cell-value">${formatDateTime(training.updated_at)}</span>
           </div>
           <div class="meta-cell">
-            <span class="meta-cell-label">Estrutura & Status</span>
+            <span class="meta-cell-label">${escapeHtml(i18n.t('training.edit.statusLabel'))}</span>
             <span class="meta-cell-value">
-              ${steps.length} ${steps.length === 1 ? 'etapa' : 'etapas'} • 
+              ${escapeHtml(i18n.t('catalog.stepsCount', { count: steps.length }))} • 
               <span style="color: ${training.status === 'published' ? '#059669' : '#d97706'};">
-                ${training.status === 'published' ? 'Publicado' : 'Em Rascunho'}
+                ${escapeHtml(training.status === 'published' ? i18n.t('catalog.statusPublished') : i18n.t('catalog.statusDraft'))}
               </span>
             </span>
           </div>
         </div>
         <div class="cover-legal">
-          Documento gerado automaticamente pela plataforma SmartGuide • Página 1
+          ${escapeHtml(i18n.t('pdf.footerNotice'))} • ${escapeHtml(i18n.t('pdf.generatedAt', { date: formatDateTime(new Date().toISOString()) }))}
         </div>
       </div>
     </section>
@@ -709,7 +699,7 @@ function buildIndexHtml(
 
       <div class="sheet-body">
         <div class="index-heading-wrap">
-          <h2 class="index-title">Índice</h2>
+          <h2 class="index-title">${escapeHtml(i18n.t('pdf.tableOfContents'))}</h2>
           <div class="accent-line"></div>
         </div>
 
@@ -780,7 +770,7 @@ function buildStepPagesHtml(
 
           <div class="sheet-body">
             <div class="step-header">
-              <div class="step-tag">Etapa ${stepIndex + 1} de ${totalSteps}${isContinuation ? ' • Continuação' : ''}</div>
+              <div class="step-tag">${escapeHtml(i18n.t('training.player.stepCounter', { current: stepIndex + 1, total: totalSteps }))}</div>
               <h2 class="step-title">${escapeHtml(step.title)}</h2>
             </div>
             ${!isContinuation && sanitizeRichTextHtml(step.content) ? `<div class="step-content">${sanitizeRichTextHtml(step.content)}</div>` : ''}

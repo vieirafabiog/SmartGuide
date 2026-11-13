@@ -19,7 +19,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { colors } from '../../constants/colors';
+import { translateApiError } from '../../i18n/errorMapper';
 import { useAuth } from '../../context/AuthContext';
 import { trainingsService } from '../../services/trainings.service';
 import { categoriesService } from '../../services/categories.service';
@@ -29,6 +31,7 @@ import { RichTextEditor } from '../../components/RichTextEditor';
 import { FilePicker, PickedFileItem } from '../../components/FilePicker';
 
 export default function CreateTrainingScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
@@ -51,10 +54,10 @@ export default function CreateTrainingScreen() {
   // Verifica permissão para criar treinamentos (Admin ou Criador)
   useEffect(() => {
     if (user && !['admin', 'creator'].includes(user.role)) {
-      alert('Você não tem permissão para criar treinamentos. Solicite acesso a um administrador.');
+      alert(t('training.create.permissionDenied'));
       router.back();
     }
-  }, [user, router]);
+  }, [user, router, t]);
 
   // Carrega categorias disponíveis da instância
   useEffect(() => {
@@ -102,7 +105,7 @@ export default function CreateTrainingScreen() {
   // Salvar treinamento
   const handleSave = async () => {
     if (!title.trim()) {
-      alert('Por favor, informe o título do treinamento.');
+      alert(t('training.create.titleRequired'));
       return;
     }
 
@@ -117,11 +120,10 @@ export default function CreateTrainingScreen() {
         categoryIds: selectedCategoryIds,
       });
 
-      alert('Treinamento salvo como Rascunho! Agora adicione as etapas.');
+      alert(t('training.create.createdSuccess'));
       router.replace(`/training/${training.id}/edit` as never);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Erro ao salvar treinamento.';
-      alert(msg);
+      alert(translateApiError(err));
     } finally {
       setSaving(false);
     }
@@ -139,19 +141,19 @@ export default function CreateTrainingScreen() {
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={20} color={colors.text} />
-          <Text style={styles.backBtnText}>Voltar</Text>
+          <Text style={styles.backBtnText}>{t('common.back')}</Text>
         </TouchableOpacity>
-        <Text style={styles.screenTitle}>Novo Treinamento</Text>
+        <Text style={styles.screenTitle}>{t('training.create.title')}</Text>
         <View style={{ width: 60 }} />
       </View>
 
       <View style={styles.card}>
         {/* Título */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Título do Treinamento *</Text>
+          <Text style={styles.label}>{t('training.create.titleLabel')}</Text>
           <TextInput
             style={styles.input}
-            placeholder="Ex: Integração de Novos Colaboradores"
+            placeholder={t('training.create.titlePlaceholder')}
             placeholderTextColor={colors.textMuted}
             value={title}
             onChangeText={setTitle}
@@ -161,16 +163,16 @@ export default function CreateTrainingScreen() {
         {/* Editor de Descrição com Rich Text WYSIWYG */}
         <View style={styles.inputGroup}>
           <RichTextEditor
-            label="Descrição do Treinamento"
+            label={t('training.create.descriptionLabel')}
             value={description}
             onChangeText={setDescription}
-            placeholder="Descreva os objetivos, para quem é destinado e as instruções..."
+            placeholder={t('training.create.descriptionPlaceholder')}
           />
         </View>
 
         {/* Upload de Imagem de Capa */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Imagem de Capa</Text>
+          <Text style={styles.label}>{t('training.create.coverLabel')}</Text>
           {coverUrl ? (
             <View style={styles.coverPreviewBox}>
               <Image
@@ -186,13 +188,13 @@ export default function CreateTrainingScreen() {
                 }}
               >
                 <Ionicons name="trash" size={16} color="#FFF" />
-                <Text style={styles.removeCoverText}>Remover Capa</Text>
+                <Text style={styles.removeCoverText}>{t('training.create.removeCover')}</Text>
               </TouchableOpacity>
             </View>
           ) : (
             <FilePicker
               accept="image/*"
-              buttonText="Selecionar imagem de capa"
+              buttonText={t('training.create.selectCover')}
               iconName="image-outline"
               isUploading={isUploadingCover}
               onFilesSelected={handleCoverUpload}
@@ -202,7 +204,7 @@ export default function CreateTrainingScreen() {
 
         {/* Categorias (Seleção Múltipla) */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Categorias</Text>
+          <Text style={styles.label}>{t('training.create.categoriesLabel')}</Text>
           <View style={styles.categoriesWrap}>
             {availableCategories.map((cat) => {
               const isSelected = selectedCategoryIds.includes(cat.id);
@@ -227,10 +229,8 @@ export default function CreateTrainingScreen() {
         {/* Visibilidade Pública */}
         <View style={styles.switchRow}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.switchTitle}>Disponível para toda a empresa</Text>
-            <Text style={styles.switchSubtitle}>
-              Se ativado, todos os colaboradores da empresa poderão visualizar este treinamento.
-            </Text>
+            <Text style={styles.switchTitle}>{t('training.create.publicLabel')}</Text>
+            <Text style={styles.switchSubtitle}>{t('training.create.publicHint')}</Text>
           </View>
           <Switch
             value={isPublic}
@@ -246,14 +246,14 @@ export default function CreateTrainingScreen() {
             onPress={() => router.back()}
             disabled={saving}
           >
-            <Text style={styles.cancelBtnText}>Cancelar</Text>
+            <Text style={styles.cancelBtnText}>{t('common.cancel')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={saving}>
             {saving ? (
               <ActivityIndicator color={colors.textInverse} size="small" />
             ) : (
-              <Text style={styles.saveBtnText}>Salvar Rascunho e Configurar Etapas →</Text>
+              <Text style={styles.saveBtnText}>{t('training.create.saveButton')}</Text>
             )}
           </TouchableOpacity>
         </View>

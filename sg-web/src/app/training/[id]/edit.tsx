@@ -20,7 +20,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { colors } from '../../../constants/colors';
+import { translateApiError } from '../../../i18n/errorMapper';
 import { stepsService } from '../../../services/steps.service';
 import { trainingsService } from '../../../services/trainings.service';
 import { categoriesService } from '../../../services/categories.service';
@@ -34,6 +36,7 @@ export default function EditTrainingStepsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
 
   const topPadding = Platform.OS !== 'web' ? insets.top + 10 : 16;
   const bottomPadding = Platform.OS !== 'web' ? insets.bottom + 24 : 32;
@@ -97,9 +100,9 @@ export default function EditTrainingStepsScreen() {
               const updated = await trainingsService.updateTraining(id, { status: 'draft' });
               setDetailStatus(updated.status);
               setTraining((prev) => (prev ? { ...prev, status: updated.status } : prev));
-              alert('Treinamento desarquivado com sucesso! Agora você pode editá-lo.');
+              alert(t('training.edit.unarchivedSuccess'));
             } catch (err: unknown) {
-              alert(err instanceof Error ? err.message : 'Erro ao desarquivar.');
+              alert(translateApiError(err, 'errors.unknownError'));
               router.back();
             }
           };
@@ -107,7 +110,7 @@ export default function EditTrainingStepsScreen() {
           if (typeof window !== 'undefined' && window.confirm) {
             if (
               window.confirm(
-                'Este treinamento está arquivado. Deseja desarquivá-lo para poder editar?'
+                t('training.edit.archivedPromptMessage')
               )
             ) {
               await doUnarchive();
@@ -116,11 +119,11 @@ export default function EditTrainingStepsScreen() {
             }
           } else {
             Alert.alert(
-              'Treinamento Arquivado',
-              'Este treinamento está arquivado. Deseja desarquivá-lo para poder editar?',
+              t('training.edit.archivedPromptTitle'),
+              t('training.edit.archivedPromptMessage'),
               [
-                { text: 'Cancelar', style: 'cancel', onPress: () => router.back() },
-                { text: 'Desarquivar e Editar', onPress: doUnarchive },
+                { text: t('common.cancel'), style: 'cancel', onPress: () => router.back() },
+                { text: t('training.edit.unarchiveAndEdit'), onPress: doUnarchive },
               ]
             );
           }
@@ -131,7 +134,7 @@ export default function EditTrainingStepsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [id, router]);
+  }, [id, router, t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -182,7 +185,7 @@ export default function EditTrainingStepsScreen() {
       const resolved = await storageService.resolveMediaUrl(uploaded.signedUrl || uploaded.url);
       setDetailCoverPreviewUrl(resolved);
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Erro inesperado.');
+      alert(translateApiError(err, 'errors.unknownError'));
     } finally {
       setIsUploadingCover(false);
     }
@@ -192,7 +195,7 @@ export default function EditTrainingStepsScreen() {
   const handleSaveDetails = async () => {
     if (!id) return;
     if (!detailTitle.trim()) {
-      alert('O título do treinamento é obrigatório.');
+      alert(t('training.create.titleRequired'));
       return;
     }
     try {
@@ -207,14 +210,14 @@ export default function EditTrainingStepsScreen() {
       });
 
       if (detailStatus === 'archived') {
-        alert('Treinamento salvo e arquivado com sucesso!');
+        alert(t('training.edit.archivedSuccess'));
         router.back();
       } else {
-        alert('Dados do treinamento atualizados!');
+        alert(t('training.edit.detailsUpdated'));
         setTraining(updated);
       }
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Erro ao salvar alterações.');
+      alert(translateApiError(err, 'errors.unknownError'));
     } finally {
       setSavingDetails(false);
     }
@@ -268,7 +271,7 @@ export default function EditTrainingStepsScreen() {
         }
       }
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Erro durante o upload.');
+      alert(translateApiError(err, 'errors.unknownError'));
     } finally {
       setIsUploadingMedia(false);
     }
@@ -318,7 +321,7 @@ export default function EditTrainingStepsScreen() {
   const handleSaveStep = async () => {
     if (!id) return;
     if (!stepTitle.trim()) {
-      alert('Informe o título da etapa.');
+      alert(t('common.requiredField'));
       return;
     }
     try {
@@ -332,7 +335,7 @@ export default function EditTrainingStepsScreen() {
         if (persistedIds.length > 0) {
           await attachmentsService.reorderAttachments(editingStepId, persistedIds);
         }
-        alert('Etapa atualizada!');
+        alert(t('training.edit.stepUpdated'));
         resetForm();
         await loadAll();
       } else {
@@ -353,12 +356,12 @@ export default function EditTrainingStepsScreen() {
             attOrder: i + 1,
           });
         }
-        alert('Etapa adicionada!');
+        alert(t('training.edit.stepAdded'));
         resetForm();
         await loadAll();
       }
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Erro ao salvar etapa.');
+      alert(translateApiError(err, 'errors.unknownError'));
     } finally {
       setSavingStep(false);
     }
@@ -372,18 +375,18 @@ export default function EditTrainingStepsScreen() {
         setSteps((prev) => prev.filter((s) => s.id !== stepId));
         if (editingStepId === stepId) resetForm();
       } catch (err: unknown) {
-        alert(err instanceof Error ? err.message : 'Erro ao excluir etapa.');
+        alert(translateApiError(err, 'errors.unknownError'));
       }
     };
 
     if (typeof window !== 'undefined' && window.confirm) {
-      if (window.confirm(`Deseja excluir a etapa "${title}"?`)) {
+      if (window.confirm(t('training.edit.deleteStepConfirm', { title }))) {
         confirmDelete();
       }
     } else {
-      Alert.alert('Excluir Etapa', `Deseja excluir a etapa "${title}"?`, [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Excluir', style: 'destructive', onPress: confirmDelete },
+      Alert.alert(t('training.edit.deleteStepTitle'), t('training.edit.deleteStepConfirm', { title }), [
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('common.delete'), style: 'destructive', onPress: confirmDelete },
       ]);
     }
   };
@@ -400,7 +403,7 @@ export default function EditTrainingStepsScreen() {
       setSteps(reordered);
     } catch (err: unknown) {
       setSteps(previousSteps);
-      alert(err instanceof Error ? err.message : 'Erro ao salvar nova ordenação das etapas.');
+      alert(translateApiError(err, 'training.edit.reorderError'));
     }
   };
 
@@ -430,7 +433,7 @@ export default function EditTrainingStepsScreen() {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.loadingText}>Carregando editor...</Text>
+        <Text style={styles.loadingText}>{t('common.loading')}</Text>
       </View>
     );
   }
@@ -450,7 +453,7 @@ export default function EditTrainingStepsScreen() {
           onPress={() => router.replace(`/training/${id}` as any)}
         >
           <Ionicons name="arrow-back" size={20} color={colors.text} />
-          <Text style={styles.backBtnText}>Concluir e Ver Treinamento</Text>
+          <Text style={styles.backBtnText}>{t('training.edit.backToPlayer')}</Text>
         </TouchableOpacity>
         <Text style={styles.topTitle} numberOfLines={1}>{training?.title}</Text>
       </View>
@@ -467,7 +470,7 @@ export default function EditTrainingStepsScreen() {
             color={activeTab === 'details' ? colors.primaryHover : colors.textSecondary}
           />
           <Text style={[styles.tabBtnText, activeTab === 'details' && styles.tabBtnTextActive]}>
-            Dados do Treinamento
+            {t('training.edit.detailsTab')}
           </Text>
         </TouchableOpacity>
 
@@ -481,7 +484,7 @@ export default function EditTrainingStepsScreen() {
             color={activeTab === 'steps' ? colors.primaryHover : colors.textSecondary}
           />
           <Text style={[styles.tabBtnText, activeTab === 'steps' && styles.tabBtnTextActive]}>
-            Etapas
+            {t('training.edit.stepsTab')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -489,19 +492,19 @@ export default function EditTrainingStepsScreen() {
       {/* =================== ABA: DADOS DO TREINAMENTO =================== */}
       {activeTab === 'details' && (
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Editar Dados do Treinamento</Text>
+          <Text style={styles.sectionTitle}>{t('training.edit.detailsTitle')}</Text>
           <Text style={styles.sectionSubtitle}>
-            Altere o título, descrição, capa, categorias e o status de publicação.
+            {t('training.edit.detailsSubtitle')}
           </Text>
 
           {/* Título */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Título *</Text>
+            <Text style={styles.label}>{t('training.edit.titleLabel')}</Text>
             <TextInput
               style={styles.input}
               value={detailTitle}
               onChangeText={setDetailTitle}
-              placeholder="Título do treinamento"
+              placeholder={t('training.create.titlePlaceholder')}
               placeholderTextColor={colors.textMuted}
             />
           </View>
@@ -509,16 +512,16 @@ export default function EditTrainingStepsScreen() {
           {/* Descrição (Rich Text) */}
           <View style={styles.inputGroup}>
             <RichTextEditor
-              label="Descrição"
+              label={t('training.edit.descriptionLabel')}
               value={detailDescription}
               onChangeText={setDetailDescription}
-              placeholder="Descreva o objetivo e o público deste treinamento..."
+              placeholder={t('training.create.descriptionPlaceholder')}
             />
           </View>
 
           {/* Imagem de Capa */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Imagem de Capa</Text>
+            <Text style={styles.label}>{t('training.edit.coverLabel')}</Text>
             {detailCoverUrl ? (
               <View style={styles.coverPreviewBox}>
                 <Image
@@ -534,13 +537,13 @@ export default function EditTrainingStepsScreen() {
                   }}
                 >
                   <Ionicons name="trash" size={16} color="#FFF" />
-                  <Text style={styles.removeCoverText}>Remover</Text>
+                  <Text style={styles.removeCoverText}>{t('training.create.removeCover')}</Text>
                 </TouchableOpacity>
               </View>
             ) : (
               <FilePicker
                 accept="image/*"
-                buttonText="Selecionar imagem de capa"
+                buttonText={t('training.create.selectCover')}
                 iconName="image-outline"
                 isUploading={isUploadingCover}
                 onFilesSelected={handleCoverUpload}
@@ -550,7 +553,7 @@ export default function EditTrainingStepsScreen() {
 
           {/* Categorias */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Categorias</Text>
+            <Text style={styles.label}>{t('training.edit.categoriesLabel')}</Text>
             <View style={styles.categoriesWrap}>
               {availableCategories.map((cat) => {
                 const isSelected = selectedCategoryIds.includes(cat.id);
@@ -574,7 +577,7 @@ export default function EditTrainingStepsScreen() {
 
           {/* Status */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Status de Publicação</Text>
+            <Text style={styles.label}>{t('training.edit.statusLabel')}</Text>
             <View style={styles.statusButtons}>
               {(['draft', 'published', 'archived'] as TrainingStatus[]).map((st) => (
                 <TouchableOpacity
@@ -583,7 +586,11 @@ export default function EditTrainingStepsScreen() {
                   onPress={() => setDetailStatus(st)}
                 >
                   <Text style={[styles.statusOptionText, detailStatus === st && styles.statusOptionTextActive]}>
-                    {st === 'draft' ? 'Rascunho' : st === 'published' ? 'Publicado' : 'Arquivado'}
+                    {st === 'draft'
+                      ? t('catalog.statusDraft')
+                      : st === 'published'
+                        ? t('catalog.statusPublished')
+                        : t('catalog.statusArchived')}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -593,9 +600,9 @@ export default function EditTrainingStepsScreen() {
           {/* Visibilidade */}
           <View style={styles.switchRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.switchTitle}>Disponível para toda a empresa</Text>
+              <Text style={styles.switchTitle}>{t('training.edit.publicLabel')}</Text>
               <Text style={styles.switchSubtitle}>
-                Todos os colaboradores da empresa poderão visualizar este treinamento.
+                {t('training.create.publicHint')}
               </Text>
             </View>
             <Switch
@@ -614,7 +621,7 @@ export default function EditTrainingStepsScreen() {
             {savingDetails ? (
               <ActivityIndicator color={colors.textInverse} size="small" />
             ) : (
-              <Text style={styles.saveBtnText}>Salvar Alterações</Text>
+              <Text style={styles.saveBtnText}>{t('training.edit.saveDetails')}</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -626,16 +633,16 @@ export default function EditTrainingStepsScreen() {
           {/* Lista de Etapas */}
           <View style={styles.card}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Etapas</Text>
+              <Text style={styles.sectionTitle}>{t('training.edit.stepsTitle')}</Text>
               <Text style={styles.sectionSubtitle}>
-                Use as setas para reordenar a sequência exibida aos colaboradores.
+                {t('training.edit.stepsSubtitle')}
               </Text>
             </View>
 
             {steps.length === 0 ? (
               <View style={styles.emptySteps}>
                 <Text style={styles.emptyStepsText}>
-                  Nenhuma etapa criada ainda. Use o formulário abaixo para adicionar a primeira.
+                  {t('training.edit.emptySteps')}
                 </Text>
               </View>
             ) : (
@@ -650,8 +657,7 @@ export default function EditTrainingStepsScreen() {
                         <Text style={styles.stepItemTitle}>{step.title}</Text>
                         {step.attachments && step.attachments.length > 0 && (
                           <Text style={styles.stepAttInfo}>
-                            📎 {step.attachments.length}{' '}
-                            {step.attachments.length === 1 ? 'mídia' : 'mídias'}
+                            📎 {step.attachments.length}
                           </Text>
                         )}
                       </View>
@@ -698,20 +704,20 @@ export default function EditTrainingStepsScreen() {
           <View style={[styles.card, { marginTop: 20 }]}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>
-                {editingStepId ? 'Editar Etapa' : 'Adicionar Nova Etapa'}
+                {editingStepId ? t('training.edit.editStepTitle') : t('training.edit.addStepTitle')}
               </Text>
               {editingStepId && (
                 <TouchableOpacity onPress={resetForm}>
-                  <Text style={styles.cancelEditLink}>Cancelar edição</Text>
+                  <Text style={styles.cancelEditLink}>{t('training.edit.cancelEdit')}</Text>
                 </TouchableOpacity>
               )}
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Título da Etapa *</Text>
+              <Text style={styles.label}>{t('training.edit.stepTitleLabel')}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Ex: Normas de Utilização do Equipamento"
+                placeholder={t('training.edit.stepTitlePlaceholder')}
                 placeholderTextColor={colors.textMuted}
                 value={stepTitle}
                 onChangeText={setStepTitle}
@@ -720,25 +726,25 @@ export default function EditTrainingStepsScreen() {
 
             <View style={styles.inputGroup}>
               <RichTextEditor
-                label="Conteúdo da Etapa"
+                label={t('training.edit.stepContentLabel')}
                 value={stepContent}
                 onChangeText={setStepContent}
-                placeholder="Digite o conteúdo detalhado da etapa..."
+                placeholder={t('training.edit.stepContentLabel')}
                 minHeight={180}
               />
             </View>
 
             {/* Mídias */}
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Imagens e Vídeos da Etapa</Text>
+              <Text style={styles.label}>{t('training.edit.mediaLabel')}</Text>
               <Text style={styles.helperText}>
-                Adicione múltiplas imagens ou vídeos para enriquecer o conteúdo desta etapa.
+                {t('training.edit.mediaHint')}
               </Text>
 
               <FilePicker
                 accept="image/*,video/*"
                 multiple={true}
-                buttonText="+ Adicionar imagem ou vídeo"
+                buttonText={t('training.edit.addMediaButton')}
                 isUploading={isUploadingMedia}
                 onFilesSelected={handleFilesSelected}
               />
@@ -764,7 +770,7 @@ export default function EditTrainingStepsScreen() {
                             {att.file_name}
                           </Text>
                           <Text style={styles.attBadge}>
-                            {index + 1}º • {att.file_type === 'video' ? 'VÍDEO' : 'IMAGEM'}
+                            #{index + 1} • {att.file_type.toUpperCase()}
                           </Text>
                         </View>
                       </View>
@@ -819,7 +825,7 @@ export default function EditTrainingStepsScreen() {
                 <ActivityIndicator color={colors.textInverse} size="small" />
               ) : (
                 <Text style={styles.saveStepBtnText}>
-                  {editingStepId ? 'Salvar Alterações da Etapa' : '+ Inserir Esta Etapa'}
+                  {editingStepId ? t('training.edit.saveStepButton') : t('training.edit.insertStepButton')}
                 </Text>
               )}
             </TouchableOpacity>

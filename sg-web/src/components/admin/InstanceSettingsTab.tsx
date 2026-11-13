@@ -12,8 +12,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'qrcode';
+import { useTranslation } from 'react-i18next';
 import { colors } from '@/constants/colors';
 import { useAuth } from '@/context/AuthContext';
+import { translateApiError } from '@/i18n/errorMapper';
 import { adminService } from '@/services/admin.service';
 import { getApiBaseUrl } from '@/services/serverConfig.service';
 import { storageService } from '@/services/storage.service';
@@ -71,6 +73,7 @@ function QrMatrixView({ value, size = 180 }: { value: string; size?: number }) {
 }
 
 export function InstanceSettingsTab() {
+  const { t } = useTranslation();
   const { serverUrl, refreshInstanceInfo } = useAuth();
   const [info, setInfo] = useState<InstanceInfo | null>(null);
   const [siteName, setSiteName] = useState('');
@@ -137,7 +140,7 @@ export function InstanceSettingsTab() {
 
   const handleSave = async () => {
     if (!siteName.trim()) {
-      alert('Informe o nome da instância.');
+      alert(t('common.requiredField'));
       return;
     }
 
@@ -150,9 +153,9 @@ export function InstanceSettingsTab() {
         allowPublicSignup,
       });
       await Promise.all([loadSettings(), refreshInstanceInfo()]);
-      alert('Configurações da instância salvas!');
+      alert(t('admin.instance.savedSuccess'));
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Erro ao salvar configurações.');
+      alert(translateApiError(err));
     } finally {
       setSaving(false);
     }
@@ -178,18 +181,18 @@ export function InstanceSettingsTab() {
   return (
     <View style={styles.container}>
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Identidade e Cadastro da Instância</Text>
+        <Text style={styles.cardTitle}>{t('admin.instance.identityTitle')}</Text>
 
-        <Text style={styles.label}>Nome da Instância *</Text>
+        <Text style={styles.label}>{t('admin.instance.siteNameLabel')}</Text>
         <TextInput
           style={styles.input}
           value={siteName}
           onChangeText={setSiteName}
-          placeholder="Ex: Smart Guide - Minha Empresa"
+          placeholder={t('admin.instance.siteNameLabel')}
           placeholderTextColor={colors.textMuted}
         />
 
-        <Text style={styles.label}>Logo da Instância</Text>
+        <Text style={styles.label}>{t('admin.instance.logoLabel')}</Text>
         {resolvedLogoUrl ? (
           <View style={styles.logoPreviewRow}>
             <Image source={{ uri: resolvedLogoUrl }} style={styles.logoPreview} resizeMode="contain" />
@@ -201,20 +204,20 @@ export function InstanceSettingsTab() {
               }}
             >
               <Ionicons name="trash-outline" size={16} color={colors.danger} />
-              <Text style={styles.removeLogoText}>Remover Logo</Text>
+              <Text style={styles.removeLogoText}>{t('admin.instance.removeLogo')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
           <FilePicker
             accept="image/*"
-            buttonText="Enviar imagem de logo"
+            buttonText={t('admin.instance.uploadLogo')}
             iconName="image-outline"
             isUploading={uploadingLogo}
             onFilesSelected={handleUploadLogo}
           />
         )}
 
-        <Text style={styles.label}>Idioma Padrão</Text>
+        <Text style={styles.label}>{t('admin.instance.defaultLocaleLabel')}</Text>
         <View style={styles.localeRow}>
           {LOCALES.map((loc) => (
             <TouchableOpacity
@@ -233,10 +236,8 @@ export function InstanceSettingsTab() {
 
         <View style={styles.switchRow}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.switchLabel}>Permitir cadastro público (Auto-registro)</Text>
-            <Text style={styles.switchSub}>
-              Quando desativado, apenas administradores podem cadastrar novos usuários.
-            </Text>
+            <Text style={styles.switchLabel}>{t('admin.instance.publicSignupLabel')}</Text>
+            <Text style={styles.switchSub}>{t('admin.instance.publicSignupHint')}</Text>
           </View>
           <Switch
             value={allowPublicSignup}
@@ -249,17 +250,15 @@ export function InstanceSettingsTab() {
           {saving ? (
             <ActivityIndicator color={colors.textInverse} size="small" />
           ) : (
-            <Text style={styles.saveBtnText}>Salvar Configurações</Text>
+            <Text style={styles.saveBtnText}>{t('admin.instance.saveButton')}</Text>
           )}
         </TouchableOpacity>
       </View>
 
       {/* Card: Conexão Mobile via QR Code */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Conectar App Mobile via QR Code</Text>
-        <Text style={styles.cardSubtitle}>
-          Escaneie este QR Code no aplicativo Smart Guide (Android/iOS) para configurar a URL deste servidor automaticamente.
-        </Text>
+        <Text style={styles.cardTitle}>{t('admin.instance.qrTitle')}</Text>
+        <Text style={styles.cardSubtitle}>{t('admin.instance.qrSubtitle')}</Text>
 
         {connectDeepLink ? (
           <View style={styles.qrSection}>
@@ -275,7 +274,7 @@ export function InstanceSettingsTab() {
                   color={colors.text}
                 />
                 <Text style={styles.copyBtnText}>
-                  {copiedConnectUrl ? 'Link copiado!' : 'Copiar link de conexão'}
+                  {copiedConnectUrl ? t('admin.instance.linkCopied') : t('admin.instance.copyConnectLink')}
                 </Text>
               </TouchableOpacity>
             )}
@@ -283,9 +282,13 @@ export function InstanceSettingsTab() {
         ) : null}
 
         <View style={styles.metaFooter}>
-          <Text style={styles.metaText}>Instance UUID: {info?.instanceUuid}</Text>
           <Text style={styles.metaText}>
-            Licença: {info?.licenseConfigured ? `Ativa (${info.licenseKeyHint ?? 'configurada'})` : 'Modo comunitário'}
+            {t('admin.instance.instanceUuid', { uuid: info?.instanceUuid ?? '-' })}
+          </Text>
+          <Text style={styles.metaText}>
+            {info?.licenseConfigured
+              ? t('admin.instance.licenseActive', { hint: info.licenseKeyHint ?? 'ok' })
+              : t('admin.instance.licenseCommunity')}
           </Text>
         </View>
       </View>

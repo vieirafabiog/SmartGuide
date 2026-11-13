@@ -17,31 +17,33 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { colors } from '../../../constants/colors';
+import { translateApiError } from '../../../i18n/errorMapper';
 import { sharingService, ShareableUser } from '../../../services/sharing.service';
 import { trainingsService } from '../../../services/trainings.service';
 import { Training, TrainingPermission, PermissionLevel } from '../../../types/database';
 
-// Descrições de cada nível de permissão
-const PERMISSION_LABELS: Record<PermissionLevel, { label: string; desc: string; color: string }> = {
+const PERMISSION_META: Record<PermissionLevel, { labelKey: string; descKey: string; color: string }> = {
   owner: {
-    label: 'Proprietário',
-    desc: 'Pode criar, editar, compartilhar e excluir o treinamento.',
+    labelKey: 'roles.owner',
+    descKey: 'training.share.ownerDesc',
     color: colors.primary,
   },
   editor: {
-    label: 'Editor',
-    desc: 'Pode editar etapas e conteúdo, mas não pode excluir nem compartilhar.',
+    labelKey: 'roles.editor',
+    descKey: 'training.share.editorDesc',
     color: colors.info,
   },
   viewer: {
-    label: 'Visualizador',
-    desc: 'Pode apenas assistir ao treinamento sem editar nada.',
+    labelKey: 'roles.viewer',
+    descKey: 'training.share.viewerDesc',
     color: colors.success,
   },
 };
 
 export default function ShareTrainingScreen() {
+  const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -164,12 +166,11 @@ export default function ShareTrainingScreen() {
         return [...prev, perm];
       });
 
-      const targetName = perm.user?.name || perm.user?.email || selectedUser.name || 'Colaborador';
+      const targetName = perm.user?.name || perm.user?.email || selectedUser.name || '';
       handleClearSelected();
-      alert(`Acesso concedido com sucesso para ${targetName}!`);
+      alert(t('training.share.accessGranted', { name: targetName }));
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Erro ao convidar usuário.';
-      alert(msg);
+      alert(translateApiError(err));
     } finally {
       setInviting(false);
     }
@@ -179,7 +180,7 @@ export default function ShareTrainingScreen() {
   const handleRemove = async (perm: TrainingPermission) => {
     if (!id) return;
     if (training && perm.user_id === training.created_by) {
-      alert('Não é possível remover o criador original do treinamento.');
+      alert(t('training.share.creatorProtected'));
       return;
     }
 
@@ -188,13 +189,15 @@ export default function ShareTrainingScreen() {
         await sharingService.removePermission(id, perm.user_id);
         setPermissions((prev) => prev.filter((p) => p.id !== perm.id));
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Erro ao remover acesso.';
-        alert(msg);
+        alert(translateApiError(err));
       }
     };
 
+    const confirmMsg = t('training.share.removeConfirm', {
+      name: perm.user?.name || perm.user?.email || '',
+    });
     if (typeof window !== 'undefined' && window.confirm) {
-      if (window.confirm(`Remover acesso de ${perm.user?.name || perm.user?.email}?`)) {
+      if (window.confirm(confirmMsg)) {
         doRemove();
       }
     } else {
@@ -206,7 +209,7 @@ export default function ShareTrainingScreen() {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.loadingText}>Carregando compartilhamentos...</Text>
+        <Text style={styles.loadingText}>{t('common.loading')}</Text>
       </View>
     );
   }
@@ -226,7 +229,7 @@ export default function ShareTrainingScreen() {
           onPress={() => router.replace(`/training/${id}` as any)}
         >
           <Ionicons name="arrow-back" size={20} color={colors.text} />
-          <Text style={styles.backBtnText}>Voltar ao Treinamento</Text>
+          <Text style={styles.backBtnText}>{t('training.share.backToTraining')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -235,7 +238,7 @@ export default function ShareTrainingScreen() {
         <View style={styles.pageHeaderLeft}>
           <Ionicons name="share-social-outline" size={24} color={colors.primary} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.pageTitle}>Compartilhar Treinamento</Text>
+            <Text style={styles.pageTitle}>{t('training.share.title')}</Text>
             <Text style={styles.pageSubtitle} numberOfLines={1}>{training?.title}</Text>
           </View>
         </View>
@@ -243,14 +246,14 @@ export default function ShareTrainingScreen() {
 
       {/* Card: Conceder Acesso com Busca Inteligente */}
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Conceder Acesso</Text>
+        <Text style={styles.sectionTitle}>{t('training.share.grantAccessTitle')}</Text>
         <Text style={styles.sectionDesc}>
-          Digite o nome ou e-mail de um usuário cadastrado para localizá-lo e conceder acesso.
+          {t('training.share.grantAccessDesc')}
         </Text>
 
         {/* Campo de Busca / Selecionado */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Colaborador</Text>
+          <Text style={styles.label}>{t('training.share.collaboratorLabel')}</Text>
 
           {selectedUser ? (
             // Card do Colaborador Selecionado
@@ -270,7 +273,7 @@ export default function ShareTrainingScreen() {
                 activeOpacity={0.7}
               >
                 <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
-                <Text style={styles.changeUserBtnText}>Trocar</Text>
+                <Text style={styles.changeUserBtnText}>{t('training.share.changeUser')}</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -282,7 +285,7 @@ export default function ShareTrainingScreen() {
                   style={styles.searchInput}
                   value={searchQuery}
                   onChangeText={setSearchQuery}
-                  placeholder="Digite o nome ou e-mail do colaborador..."
+                  placeholder={t('training.share.searchPlaceholder')}
                   placeholderTextColor={colors.textMuted}
                   autoCapitalize="none"
                 />
@@ -320,7 +323,9 @@ export default function ShareTrainingScreen() {
                         {existingPerm && (
                           <View style={styles.alreadyHasAccessBadge}>
                             <Text style={styles.alreadyHasAccessText}>
-                              {PERMISSION_LABELS[existingPerm.permission]?.label || 'Acesso Ativo'}
+                              {PERMISSION_META[existingPerm.permission]
+                                ? t(PERMISSION_META[existingPerm.permission].labelKey)
+                                : t('common.active')}
                             </Text>
                           </View>
                         )}
@@ -336,7 +341,7 @@ export default function ShareTrainingScreen() {
                 <View style={styles.noResultsBox}>
                   <Ionicons name="alert-circle-outline" size={16} color={colors.textSecondary} style={{ marginRight: 6 }} />
                   <Text style={styles.noResultsText}>
-                    Nenhum colaborador encontrado com &quot;{debouncedQuery}&quot;.
+                    {t('training.share.noResults', { query: debouncedQuery })}
                   </Text>
                 </View>
               )}
@@ -346,10 +351,10 @@ export default function ShareTrainingScreen() {
 
         {/* Nível de Acesso */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Nível de Acesso</Text>
+          <Text style={styles.label}>{t('training.share.accessLevelLabel')}</Text>
           <View style={styles.permButtons}>
             {(['viewer', 'editor', 'owner'] as PermissionLevel[]).map((level) => {
-              const info = PERMISSION_LABELS[level];
+              const info = PERMISSION_META[level];
               const isSelected = invitePermission === level;
               return (
                 <TouchableOpacity
@@ -367,7 +372,7 @@ export default function ShareTrainingScreen() {
                       isSelected && { color: info.color, fontWeight: '700' },
                     ]}
                   >
-                    {info.label}
+                    {t(info.labelKey)}
                   </Text>
                 </TouchableOpacity>
               );
@@ -387,7 +392,7 @@ export default function ShareTrainingScreen() {
           ) : (
             <>
               <Ionicons name="person-add-outline" size={18} color={colors.textInverse} />
-              <Text style={styles.inviteBtnText}>Conceder Acesso</Text>
+              <Text style={styles.inviteBtnText}>{t('training.share.grantButton')}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -395,15 +400,15 @@ export default function ShareTrainingScreen() {
 
       {/* Explicação dos Níveis de Acesso */}
       <View style={[styles.card, { marginTop: 16 }]}>
-        <Text style={styles.sectionTitle}>Entenda os Níveis de Acesso</Text>
-        {(Object.keys(PERMISSION_LABELS) as PermissionLevel[]).map((level) => {
-          const info = PERMISSION_LABELS[level];
+        <Text style={styles.sectionTitle}>{t('training.share.levelsExplanationTitle')}</Text>
+        {(Object.keys(PERMISSION_META) as PermissionLevel[]).map((level) => {
+          const info = PERMISSION_META[level];
           return (
             <View key={level} style={styles.permLevelRow}>
               <View style={[styles.permLevelDot, { backgroundColor: info.color }]} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.permLevelLabel}>{info.label}</Text>
-                <Text style={styles.permLevelDesc}>{info.desc}</Text>
+                <Text style={styles.permLevelLabel}>{t(info.labelKey)}</Text>
+                <Text style={styles.permLevelDesc}>{t(info.descKey)}</Text>
               </View>
             </View>
           );
@@ -412,20 +417,20 @@ export default function ShareTrainingScreen() {
 
       {/* Lista de quem tem acesso */}
       <View style={[styles.card, { marginTop: 16 }]}>
-        <Text style={styles.sectionTitle}>Quem Tem Acesso</Text>
+        <Text style={styles.sectionTitle}>{t('training.share.whoHasAccessTitle')}</Text>
         {permissions.length === 0 ? (
-          <Text style={styles.emptyText}>Nenhum colaborador com acesso concedido ainda.</Text>
+          <Text style={styles.emptyText}>{t('training.share.emptyAccess')}</Text>
         ) : (
           <View style={styles.permList}>
             {permissions.map((perm) => {
-              const info = PERMISSION_LABELS[perm.permission];
+              const info = PERMISSION_META[perm.permission];
               return (
                 <View key={perm.id} style={styles.permRow}>
                   <View style={styles.permRowLeft}>
                     <View style={[styles.permDot, { backgroundColor: info.color }]} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.permUserName}>
-                        {perm.user?.name || 'Colaborador'}
+                        {perm.user?.name || t('roles.user')}
                       </Text>
                       <Text style={styles.permUserEmail}>{perm.user?.email}</Text>
                     </View>
@@ -434,13 +439,13 @@ export default function ShareTrainingScreen() {
                   <View style={styles.permRowRight}>
                     <View style={[styles.permBadge, { backgroundColor: info.color + '20' }]}>
                       <Text style={[styles.permBadgeText, { color: info.color }]}>
-                        {info.label.toUpperCase()}
+                        {t(info.labelKey).toUpperCase()}
                       </Text>
                     </View>
 
                     {perm.user_id === training?.created_by ? (
                       <View style={[styles.permBadge, { backgroundColor: colors.primary + '20' }]}>
-                        <Text style={[styles.permBadgeText, { color: colors.primary }]}>CRIADOR</Text>
+                        <Text style={[styles.permBadgeText, { color: colors.primary }]}>{t('training.share.creatorBadge')}</Text>
                       </View>
                     ) : (
                       <TouchableOpacity

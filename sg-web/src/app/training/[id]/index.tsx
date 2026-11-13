@@ -21,7 +21,9 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { useTranslation } from 'react-i18next';
 import { colors } from '../../../constants/colors';
+import { translateApiError } from '../../../i18n/errorMapper';
 import { useAuth } from '../../../context/AuthContext';
 import { trainingsService } from '../../../services/trainings.service';
 import { stepsService } from '../../../services/steps.service';
@@ -64,6 +66,7 @@ export default function TrainingPlayerScreen() {
   const { id, fromTrainings } = useLocalSearchParams<{ id: string; fromTrainings?: string }>();
   const router = useRouter();
   const { user } = useAuth();
+  const { t } = useTranslation();
 
   // O progresso só funciona de fato quando o treinamento é aberto pela tela de treinamentos
   const canTrackProgress = fromTrainings === 'true' || fromTrainings === '1';
@@ -158,7 +161,7 @@ export default function TrainingPlayerScreen() {
 
         if (hasModifications) {
           setIsAutoUpdating(true);
-          setAutoUpdateMessage('Identificadas alterações no treinamento. Atualizando...');
+          setAutoUpdateMessage(t('training.player.autoUpdating'));
 
           try {
             const syncRes = await offlineService.downloadTraining(
@@ -172,7 +175,7 @@ export default function TrainingPlayerScreen() {
               if (freshOffline) {
                 setTraining(freshOffline.training);
                 setSteps(freshOffline.steps);
-                setAutoUpdateMessage('Treinamento atualizado com a versão mais recente!');
+                setAutoUpdateMessage(t('training.player.autoUpdated'));
                 setTimeout(() => setAutoUpdateMessage(null), 3500);
               }
             }
@@ -211,7 +214,7 @@ export default function TrainingPlayerScreen() {
     } finally {
       setLoading(false);
     }
-  }, [id, user, canTrackProgress]);
+  }, [id, user, canTrackProgress, t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -257,7 +260,7 @@ export default function TrainingPlayerScreen() {
     try {
       setIsDownloading(true);
       setDownloadProgressPct(0);
-      setDownloadProgressMsg('Iniciando download...');
+      setDownloadProgressMsg(t('training.player.downloading'));
 
       const res = await offlineService.downloadTraining(id, (msg, pct) => {
         setDownloadProgressMsg(msg);
@@ -266,13 +269,13 @@ export default function TrainingPlayerScreen() {
 
       if (res.success) {
         setIsDownloaded(true);
-        alert('Treinamento, etapas e mídias baixados com sucesso para uso offline!');
+        alert(t('training.player.downloaded'));
         loadData();
       } else {
-        alert(res.error || 'Erro ao baixar treinamento.');
+        alert(res.error || t('errors.unknownError'));
       }
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Erro inesperado no download offline.');
+      alert(translateApiError(err, 'errors.unknownError'));
     } finally {
       setIsDownloading(false);
       setDownloadProgressMsg('');
@@ -287,7 +290,7 @@ export default function TrainingPlayerScreen() {
       setIsPrinting(true);
       await pdfService.generateTrainingPdf(training, steps);
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Não foi possível gerar o PDF do treinamento.');
+      alert(translateApiError(err, 'errors.unknownError'));
     } finally {
       setIsPrinting(false);
     }
@@ -299,11 +302,11 @@ export default function TrainingPlayerScreen() {
     const confirmDelete = async () => {
       await offlineService.removeOfflineTraining(id);
       setIsDownloaded(false);
-      alert('Treinamento offline removido do aparelho.');
+      alert(t('training.player.offlineRemoved'));
     };
 
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm) {
-      if (window.confirm('Deseja excluir as etapas e mídias baixadas offline?')) {
+      if (window.confirm(t('training.player.removeOfflineConfirm'))) {
         confirmDelete();
       }
     } else {
@@ -314,7 +317,7 @@ export default function TrainingPlayerScreen() {
   // Alterna o status de conclusão da etapa atual
   const toggleCurrentStepCompletion = async () => {
     if (!canTrackProgress) {
-      alert('Modo de Visualização: O registro de progresso só é computado quando o treinamento é aberto pela tela de Treinamentos.');
+      alert(t('training.player.previewModeNotice'));
       return;
     }
 
@@ -336,7 +339,7 @@ export default function TrainingPlayerScreen() {
       setCompletedStepIds((prev) =>
         isCompleted ? [...prev, currentStep.id] : prev.filter((sId) => sId !== currentStep.id)
       );
-      alert(err instanceof Error ? err.message : 'Erro ao registrar progresso.');
+      alert(translateApiError(err, 'errors.unknownError'));
     }
   };
 
@@ -344,7 +347,7 @@ export default function TrainingPlayerScreen() {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.loadingText}>Carregando treinamento...</Text>
+        <Text style={styles.loadingText}>{t('training.player.loading')}</Text>
       </View>
     );
   }
@@ -352,9 +355,9 @@ export default function TrainingPlayerScreen() {
   if (!training) {
     return (
       <View style={styles.loadingContainer}>
-        <Text style={styles.errorText}>Treinamento não encontrado.</Text>
+        <Text style={styles.errorText}>{t('training.player.notFound')}</Text>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Text style={styles.backBtnText}>Voltar</Text>
+          <Text style={styles.backBtnText}>{t('training.player.backToCatalog')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -378,26 +381,26 @@ export default function TrainingPlayerScreen() {
           setTraining(updated);
           router.push(`/training/${training.id}/edit` as never);
         } catch (err: unknown) {
-          alert(err instanceof Error ? err.message : 'Erro ao desarquivar treinamento.');
+          alert(translateApiError(err, 'errors.unknownError'));
         }
       };
 
       if (typeof window !== 'undefined' && window.confirm) {
         if (
           window.confirm(
-            'Este treinamento está arquivado. Deseja desarquivá-lo para poder editar?'
+            t('training.edit.archivedPromptMessage')
           )
         ) {
           await confirmUnarchive();
         }
       } else {
         Alert.alert(
-          'Treinamento Arquivado',
-          'Este treinamento está arquivado. Deseja desarquivá-lo para poder editar?',
+          t('training.edit.archivedPromptTitle'),
+          t('training.edit.archivedPromptMessage'),
           [
-            { text: 'Cancelar', style: 'cancel' },
+            { text: t('common.cancel'), style: 'cancel' },
             {
-              text: 'Desarquivar e Editar',
+              text: t('training.edit.unarchiveAndEdit'),
               onPress: confirmUnarchive,
             },
           ]
@@ -422,7 +425,7 @@ export default function TrainingPlayerScreen() {
           >
             <Ionicons name="arrow-back" size={18} color={colors.text} />
             <Text style={styles.backLinkText}>
-              {mode === 'study' ? 'Sair do Modo Estudo' : 'Voltar para Treinamentos'}
+              {mode === 'study' ? t('training.player.overviewTab') : t('training.player.backToCatalog')}
             </Text>
           </TouchableOpacity>
 
@@ -438,7 +441,9 @@ export default function TrainingPlayerScreen() {
               ) : (
                 <Ionicons name="print-outline" size={16} color={colors.text} />
               )}
-              <Text style={styles.editBtnText}>{isPrinting ? 'Gerando PDF...' : 'Imprimir'}</Text>
+              <Text style={styles.editBtnText}>
+                {isPrinting ? t('training.player.exportingPdf') : t('training.player.exportPdf')}
+              </Text>
             </TouchableOpacity>
 
             {isCreatorOrAdmin && (
@@ -447,7 +452,7 @@ export default function TrainingPlayerScreen() {
                 onPress={() => router.push(`/training/${training.id}/share` as any)}
               >
                 <Ionicons name="share-social-outline" size={16} color={colors.text} />
-                <Text style={styles.editBtnText}>Compartilhar</Text>
+                <Text style={styles.editBtnText}>{t('training.player.shareTraining')}</Text>
               </TouchableOpacity>
             )}
 
@@ -457,7 +462,7 @@ export default function TrainingPlayerScreen() {
                 onPress={handleEditTraining}
               >
                 <Ionicons name="create-outline" size={16} color={colors.text} />
-                <Text style={styles.editBtnText}>Editar</Text>
+                <Text style={styles.editBtnText}>{t('training.player.editTraining')}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -517,7 +522,11 @@ export default function TrainingPlayerScreen() {
                   <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
                 </View>
                 <Text style={styles.progressLabel}>
-                  {progressPercent}% concluído
+                  {t('training.player.progressLabel', {
+                    percent: progressPercent,
+                    completed: completedStepIds.length,
+                    total: steps.length,
+                  })}
                 </Text>
               </View>
 
@@ -535,13 +544,13 @@ export default function TrainingPlayerScreen() {
                 >
                   <Ionicons name="play" size={18} color={colors.textInverse} />
                   <Text style={styles.startStudyBtnText}>
-                    {progressPercent > 0 ? 'Continuar Estudo' : 'Iniciar Treinamento'}
+                    {progressPercent > 0 ? t('training.player.continueStudy') : t('training.player.startStudy')}
                   </Text>
                 </TouchableOpacity>
               ) : (
                 <View style={styles.noStepsAlert}>
                   <Text style={styles.noStepsAlertText}>
-                    Este treinamento ainda não possui etapas cadastradas.
+                    {t('training.edit.emptySteps')}
                   </Text>
                 </View>
               )}
@@ -556,12 +565,7 @@ export default function TrainingPlayerScreen() {
                   />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.offlineBoxTitle}>
-                      {isDownloaded ? 'Treinamento Disponível Offline' : 'Acesso Offline'}
-                    </Text>
-                    <Text style={styles.offlineBoxSubtitle}>
-                      {isDownloaded
-                        ? 'Todas as etapas, fotos e vídeos estão salvos no aparelho para acesso sem internet.'
-                        : 'Salve este treinamento para estudar mesmo sem conexão com a internet.'}
+                      {isDownloaded ? t('training.player.downloaded') : t('training.player.downloadOffline')}
                     </Text>
                   </View>
                 </View>
@@ -586,14 +590,14 @@ export default function TrainingPlayerScreen() {
                   <View style={styles.offlineActionsRow}>
                     <View style={styles.offlineBadgeActive}>
                       <Ionicons name="checkmark-circle" size={15} color={colors.success} />
-                      <Text style={styles.offlineBadgeText}>Baixado com sucesso</Text>
+                      <Text style={styles.offlineBadgeText}>{t('training.player.downloaded')}</Text>
                     </View>
                     <TouchableOpacity
                       style={styles.removeOfflineBtn}
                       onPress={handleDeleteOffline}
                     >
                       <Ionicons name="trash-outline" size={14} color={colors.danger} />
-                      <Text style={styles.removeOfflineBtnText}>Excluir download</Text>
+                      <Text style={styles.removeOfflineBtnText}>{t('common.delete')}</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
@@ -603,7 +607,7 @@ export default function TrainingPlayerScreen() {
                     disabled={isDownloading || steps.length === 0}
                   >
                     <Ionicons name="download-outline" size={16} color={colors.primary} />
-                    <Text style={styles.downloadOfflineBtnText}>Baixar Treinamento Offline</Text>
+                    <Text style={styles.downloadOfflineBtnText}>{t('training.player.downloadOffline')}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -613,20 +617,20 @@ export default function TrainingPlayerScreen() {
                 <View style={styles.previewModeBanner}>
                   <Ionicons name="eye-outline" size={18} color="#D97706" />
                   <Text style={styles.previewModeText}>
-                    Modo Pré-visualização: O progresso só é registrado quando aberto pela tela de Treinamentos.
+                    {t('training.player.previewModeNotice')}
                   </Text>
                 </View>
               )}
 
               {/* Descrição em Texto Rico */}
               <View style={styles.descSection}>
-                <Text style={styles.sectionHeading}>Sobre o Treinamento:</Text>
+                <Text style={styles.sectionHeading}>{t('training.edit.descriptionLabel')}</Text>
                 <RichTextViewer content={training.description} />
               </View>
 
               {/* Lista das Etapas */}
               <View style={styles.stepsSection}>
-                <Text style={styles.sectionHeading}>Etapas do Treinamento:</Text>
+                <Text style={styles.sectionHeading}>{t('training.edit.stepsTitle')}</Text>
                 {steps.map((step, idx) => {
                   const isDone = completedStepIds.includes(step.id);
                   return (
@@ -664,7 +668,10 @@ export default function TrainingPlayerScreen() {
             <View style={styles.playerHeader}>
               <View style={styles.stepIndicator}>
                 <Text style={styles.stepIndicatorText}>
-                  Etapa {currentStepIndex + 1} de {steps.length}
+                  {t('training.player.stepCounter', {
+                    current: currentStepIndex + 1,
+                    total: steps.length,
+                  })}
                 </Text>
               </View>
               <Text style={styles.currentStepTitle}>{currentStep?.title}</Text>
@@ -679,9 +686,9 @@ export default function TrainingPlayerScreen() {
             {currentStep?.attachments && currentStep.attachments.length > 0 && (
               <View style={styles.attachmentsSection}>
                 <View style={styles.attachmentsHeaderRow}>
-                  <Text style={styles.attachmentsTitle}>Materiais e Mídias:</Text>
+                  <Text style={styles.attachmentsTitle}>{t('training.player.attachmentsTitle')}</Text>
                   <Text style={styles.attachmentsSubtitle}>
-                    Toque na mídia para expandir em tela cheia
+                    {t('training.player.attachmentsSubtitle')}
                   </Text>
                 </View>
                 {currentStep.attachments.map((att) => {
@@ -718,7 +725,7 @@ export default function TrainingPlayerScreen() {
                           activeOpacity={0.8}
                         >
                           <Ionicons name="expand-outline" size={14} color={colors.text} />
-                          <Text style={styles.expandVideoBtnText}>Expandir em Popup</Text>
+                          <Text style={styles.expandVideoBtnText}>{t('training.player.expandMedia')}</Text>
                         </TouchableOpacity>
                       </View>
                     ) : (
@@ -737,7 +744,7 @@ export default function TrainingPlayerScreen() {
                         />
                         <View style={styles.expandBadge}>
                           <Ionicons name="scan-outline" size={13} color="#FFF" />
-                          <Text style={styles.expandBadgeText}>Clique para ampliar</Text>
+                          <Text style={styles.expandBadgeText}>{t('training.player.clickToZoom')}</Text>
                         </View>
                       </TouchableOpacity>
                     )}
@@ -760,7 +767,7 @@ export default function TrainingPlayerScreen() {
               <View style={styles.previewModeBanner}>
                 <Ionicons name="information-circle-outline" size={18} color="#D97706" />
                 <Text style={styles.previewModeText}>
-                  Modo Pré-visualização: O progresso só é registrado quando aberto pela tela de Treinamentos.
+                  {t('training.player.previewModeNotice')}
                 </Text>
               </View>
             )}
@@ -793,10 +800,10 @@ export default function TrainingPlayerScreen() {
                 ]}
               >
                 {!canTrackProgress
-                  ? 'Progresso desativado em pré-visualização'
+                  ? t('training.player.previewModeNotice')
                   : isCurrentStepCompleted
-                  ? 'Etapa Concluída'
-                  : 'Marcar etapa como concluída'}
+                  ? t('training.player.markedCompleted')
+                  : t('training.player.markCompleted')}
               </Text>
             </TouchableOpacity>
 
@@ -807,8 +814,7 @@ export default function TrainingPlayerScreen() {
                 disabled={currentStepIndex === 0}
                 onPress={() => setCurrentStepIndex((prev) => Math.max(0, prev - 1))}
               >
-                <Ionicons name="arrow-back" size={16} color={colors.text} />
-                <Text style={styles.navStepBtnText}>Etapa Anterior</Text>
+                <Text style={styles.navStepBtnText}>{t('training.player.previousStep')}</Text>
               </TouchableOpacity>
 
               {currentStepIndex < steps.length - 1 ? (
@@ -818,15 +824,14 @@ export default function TrainingPlayerScreen() {
                     setCurrentStepIndex((prev) => Math.min(steps.length - 1, prev + 1))
                   }
                 >
-                  <Text style={styles.navStepBtnPrimaryText}>Próxima Etapa</Text>
-                  <Ionicons name="arrow-forward" size={16} color={colors.textInverse} />
+                  <Text style={styles.navStepBtnPrimaryText}>{t('training.player.nextStep')}</Text>
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity
                   style={[styles.navStepBtn, styles.navStepBtnFinish]}
                   onPress={() => setMode('overview')}
                 >
-                  <Text style={styles.navStepBtnPrimaryText}>Finalizar Treinamento ✓</Text>
+                  <Text style={styles.navStepBtnPrimaryText}>{t('training.player.finishTraining')}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -912,7 +917,7 @@ export default function TrainingPlayerScreen() {
           </TouchableOpacity>
 
           <Text style={styles.lightboxHint}>
-            Toque no botão fechar (X) ou fora da mídia para fechar o popup
+            {t('training.player.lightboxHint')}
           </Text>
         </View>
       </Modal>
