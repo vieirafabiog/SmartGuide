@@ -3,7 +3,7 @@
 // Permite editar os dados base do treinamento e gerenciar suas etapas
 // ==============================================================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -28,13 +28,11 @@ import { storageService } from '../../../services/storage.service';
 import { attachmentsService } from '../../../services/attachments.service';
 import { Training, TrainingStep, StepAttachment, Category, TrainingStatus } from '../../../types/database';
 import { RichTextEditor } from '../../../components/RichTextEditor';
-import { FilePicker } from '../../../components/FilePicker';
-import { useAuth } from '../../../context/AuthContext';
+import { FilePicker, PickedFileItem } from '../../../components/FilePicker';
 
 export default function EditTrainingStepsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { user } = useAuth();
   const insets = useSafeAreaInsets();
 
   const topPadding = Platform.OS !== 'web' ? insets.top + 10 : 16;
@@ -51,6 +49,7 @@ export default function EditTrainingStepsScreen() {
   const [detailTitle, setDetailTitle] = useState('');
   const [detailDescription, setDetailDescription] = useState('');
   const [detailCoverUrl, setDetailCoverUrl] = useState('');
+  const [detailCoverPreviewUrl, setDetailCoverPreviewUrl] = useState('');
   const [detailStatus, setDetailStatus] = useState<TrainingStatus>('draft');
   const [detailIsPublic, setDetailIsPublic] = useState(true);
   const [availableCategories, setAvailableCategories] = useState<Category[]>([]);
@@ -63,28 +62,30 @@ export default function EditTrainingStepsScreen() {
   const [stepTitle, setStepTitle] = useState('');
   const [stepContent, setStepContent] = useState('');
   const [attachments, setAttachments] = useState<StepAttachment[]>([]);
+  const [resolvedThumbUrls, setResolvedThumbUrls] = useState<Record<string, string>>({});
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [savingStep, setSavingStep] = useState(false);
 
   // Carrega os dados do treinamento, etapas e categorias
-  const loadAll = async () => {
+  const loadAll = useCallback(async () => {
     if (!id) return;
     try {
       setLoading(true);
       const [tData, sData, cats] = await Promise.all([
         trainingsService.getTrainingById(id),
-        stepsService.getStepsByTrainingId(id),
-        categoriesService.getCategories(user?.company_id),
+        stepsService.getSteps(id),
+        categoriesService.getCategories(),
       ]);
       setTraining(tData);
       setSteps(sData);
       setAvailableCategories(cats);
 
-      // Preenche os campos de detalhes com os dados atuais
       if (tData) {
         setDetailTitle(tData.title);
         setDetailDescription(tData.description);
         setDetailCoverUrl(tData.cover_url || '');
+        const resolvedCover = await storageService.resolveMediaUrl(tData.cover_url);
+        setDetailCoverPreviewUrl(resolvedCover);
         setDetailStatus(tData.status);
         setDetailIsPublic(tData.is_public);
         setSelectedCategoryIds((tData.categories || []).map((c) => c.id));
@@ -92,15 +93,13 @@ export default function EditTrainingStepsScreen() {
         // Se estiver arquivado, solicita confirmação para desarquivar antes de permitir edição
         if (tData.status === 'archived') {
           const doUnarchive = async () => {
-            const { success, error } = await trainingsService.updateTraining(id, {
-              status: 'draft',
-            });
-            if (success) {
-              setDetailStatus('draft');
-              setTraining((prev) => (prev ? { ...prev, status: 'draft' } : prev));
+            try {
+              const updated = await trainingsService.updateTraining(id, { status: 'draft' });
+              setDetailStatus(updated.status);
+              setTraining((prev) => (prev ? { ...prev, status: updated.status } : prev));
               alert('Treinamento desarquivado com sucesso! Agora você pode editá-lo.');
-            } else {
-              alert(error || 'Erro ao desarquivar.');
+            } catch (err: unknown) {
+              alert(err instanceof Error ? err.message : 'Erro ao desarquivar.');
               router.back();
             }
           };
@@ -132,11 +131,38 @@ export default function EditTrainingStepsScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, router]);
 
   useEffect(() => {
-    loadAll();
-  }, [id]);
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (!cancelled) {
+        void loadAll();
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [loadAll]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function resolveThumbnails() {
+      const next: Record<string, string> = {};
+      await Promise.all(
+        attachments.map(async (att) => {
+          if (att.file_type === 'image' && att.file_url) {
+            next[att.id] = await storageService.resolveMediaUrl(att.file_url);
+          }
+        }),
+      );
+      if (!cancelled) setResolvedThumbUrls(next);
+    }
+    resolveThumbnails();
+    return () => {
+      cancelled = true;
+    };
+  }, [attachments]);
 
   // Alterna seleção de categoria nos detalhes
   const toggleCategory = (catId: string) => {
@@ -146,20 +172,17 @@ export default function EditTrainingStepsScreen() {
   };
 
   // Upload da imagem de capa
-  const handleCoverUpload = async (files: File[]) => {
+  const handleCoverUpload = async (files: PickedFileItem[]) => {
     if (!files || files.length === 0) return;
     const file = files[0];
     try {
       setIsUploadingCover(true);
-      const companyId = user?.company_id || 'global';
-      const { url, error } = await storageService.uploadTrainingCover(file, file.name, companyId);
-      if (error || !url) {
-        alert(error || 'Erro ao enviar a imagem.');
-      } else {
-        setDetailCoverUrl(url);
-      }
-    } catch (err: any) {
-      alert(err.message || 'Erro inesperado.');
+      const uploaded = await storageService.uploadMedia('training-covers', file);
+      setDetailCoverUrl(uploaded.url);
+      const resolved = await storageService.resolveMediaUrl(uploaded.signedUrl || uploaded.url);
+      setDetailCoverPreviewUrl(resolved);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Erro inesperado.');
     } finally {
       setIsUploadingCover(false);
     }
@@ -167,38 +190,31 @@ export default function EditTrainingStepsScreen() {
 
   // Salva os detalhes base do treinamento
   const handleSaveDetails = async () => {
+    if (!id) return;
     if (!detailTitle.trim()) {
       alert('O título do treinamento é obrigatório.');
       return;
     }
     try {
       setSavingDetails(true);
-      const { success, error } = await trainingsService.updateTraining(
-        id,
-        {
-          title: detailTitle.trim(),
-          description: detailDescription.trim(),
-          cover_url: detailCoverUrl,
-          status: detailStatus,
-          is_public: detailIsPublic,
-        },
-        selectedCategoryIds
-      );
+      const updated = await trainingsService.updateTraining(id, {
+        title: detailTitle.trim(),
+        description: detailDescription.trim(),
+        coverUrl: detailCoverUrl.trim() || null,
+        status: detailStatus,
+        isPublic: detailIsPublic,
+        categoryIds: selectedCategoryIds,
+      });
 
-      if (success) {
-        if (detailStatus === 'archived') {
-          alert('Treinamento salvo e arquivado com sucesso!');
-          router.back();
-        } else {
-          alert('Dados do treinamento atualizados!');
-          // Atualiza o título exibido na tela
-          setTraining((prev) => prev ? { ...prev, title: detailTitle.trim(), status: detailStatus } : prev);
-        }
+      if (detailStatus === 'archived') {
+        alert('Treinamento salvo e arquivado com sucesso!');
+        router.back();
       } else {
-        alert(error || 'Erro ao salvar alterações.');
+        alert('Dados do treinamento atualizados!');
+        setTraining(updated);
       }
-    } catch (err: any) {
-      alert(err.message || 'Erro inesperado.');
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Erro ao salvar alterações.');
     } finally {
       setSavingDetails(false);
     }
@@ -221,43 +237,38 @@ export default function EditTrainingStepsScreen() {
   };
 
   // Upload de mídias para a etapa
-  const handleFilesSelected = async (files: File[]) => {
+  const handleFilesSelected = async (files: PickedFileItem[]) => {
     if (!files || files.length === 0 || !id) return;
     try {
       setIsUploadingMedia(true);
-      const stepRefId = editingStepId || 'temp_step';
       for (const file of files) {
-        const { result, error } = await storageService.uploadStepMedia(
-          file,
-          file.name,
-          id,
-          stepRefId
-        );
-        if (error || !result) {
-          alert(`Erro ao enviar ${file.name}: ${error}`);
-        } else if (editingStepId) {
-          const { attachment } = await attachmentsService.createAttachment(editingStepId, {
-            step_id: editingStepId,
-            file_name: result.fileName,
-            file_url: result.url,
-            file_type: result.fileType,
-            file_size: result.fileSize,
+        const result = await storageService.uploadMedia('step-attachments', file);
+        if (editingStepId) {
+          const attachment = await attachmentsService.createAttachment(editingStepId, {
+            fileName: result.fileName,
+            storageKey: result.storageKey,
+            fileUrl: result.url,
+            fileType: result.fileType,
+            mimeType: result.mimeType,
+            fileSize: result.fileSize,
           });
-          if (attachment) setAttachments((prev) => [...prev, attachment]);
+          setAttachments((prev) => [...prev, attachment]);
         } else {
           const pendingAtt: StepAttachment = {
             id: `temp-${Date.now()}-${Math.random()}`,
             step_id: '',
             file_name: result.fileName,
+            storage_key: result.storageKey,
             file_url: result.url,
             file_type: result.fileType,
+            mime_type: result.mimeType,
             file_size: result.fileSize,
           };
           setAttachments((prev) => [...prev, pendingAtt]);
         }
       }
-    } catch (err: any) {
-      alert(err.message || 'Erro durante o upload.');
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Erro durante o upload.');
     } finally {
       setIsUploadingMedia(false);
     }
@@ -266,7 +277,7 @@ export default function EditTrainingStepsScreen() {
   // Remover anexo
   const handleRemoveAttachment = async (attId: string) => {
     if (editingStepId && !attId.startsWith('temp-')) {
-      await attachmentsService.deleteAttachment(attId, editingStepId);
+      await attachmentsService.deleteAttachment(attId);
     }
     setAttachments((prev) => prev.filter((a) => a.id !== attId));
   };
@@ -280,7 +291,10 @@ export default function EditTrainingStepsScreen() {
     next[index] = temp;
     setAttachments(next);
     if (editingStepId) {
-      await attachmentsService.reorderAttachments(editingStepId, next);
+      const persistedIds = next.filter((a) => !a.id.startsWith('temp-')).map((a) => a.id);
+      if (persistedIds.length > 0) {
+        await attachmentsService.reorderAttachments(editingStepId, persistedIds);
+      }
     }
   };
 
@@ -293,12 +307,16 @@ export default function EditTrainingStepsScreen() {
     next[index] = temp;
     setAttachments(next);
     if (editingStepId) {
-      await attachmentsService.reorderAttachments(editingStepId, next);
+      const persistedIds = next.filter((a) => !a.id.startsWith('temp-')).map((a) => a.id);
+      if (persistedIds.length > 0) {
+        await attachmentsService.reorderAttachments(editingStepId, persistedIds);
+      }
     }
   };
 
   // Salvar etapa (nova ou atualização)
   const handleSaveStep = async () => {
+    if (!id) return;
     if (!stepTitle.trim()) {
       alert('Informe o título da etapa.');
       return;
@@ -306,46 +324,41 @@ export default function EditTrainingStepsScreen() {
     try {
       setSavingStep(true);
       if (editingStepId) {
-        const { success, error } = await stepsService.updateStep(editingStepId, {
+        await stepsService.updateStep(editingStepId, {
           title: stepTitle.trim(),
           content: stepContent.trim(),
         });
-        if (error || !success) {
-          alert(error || 'Erro ao atualizar etapa.');
-        } else {
-          await attachmentsService.reorderAttachments(editingStepId, attachments);
-          alert('Etapa atualizada!');
-          resetForm();
-          loadAll();
+        const persistedIds = attachments.filter((a) => !a.id.startsWith('temp-')).map((a) => a.id);
+        if (persistedIds.length > 0) {
+          await attachmentsService.reorderAttachments(editingStepId, persistedIds);
         }
+        alert('Etapa atualizada!');
+        resetForm();
+        await loadAll();
       } else {
-        const { step, error } = await stepsService.createStep({
-          training_id: id,
+        const step = await stepsService.createStep(id, {
           title: stepTitle.trim(),
           content: stepContent.trim(),
-          step_order: steps.length + 1,
+          stepOrder: steps.length + 1,
         });
-        if (error || !step) {
-          alert(error || 'Erro ao criar etapa.');
-        } else {
-          for (let i = 0; i < attachments.length; i++) {
-            const att = attachments[i];
-            await attachmentsService.createAttachment(step.id, {
-              step_id: step.id,
-              file_name: att.file_name,
-              file_url: att.file_url,
-              file_type: att.file_type,
-              file_size: att.file_size,
-              att_order: i + 1,
-            });
-          }
-          alert('Etapa adicionada!');
-          resetForm();
-          loadAll();
+        for (let i = 0; i < attachments.length; i++) {
+          const att = attachments[i];
+          await attachmentsService.createAttachment(step.id, {
+            fileName: att.file_name,
+            storageKey: att.storage_key || att.file_url,
+            fileUrl: att.file_url,
+            fileType: att.file_type,
+            mimeType: att.mime_type || (att.file_type === 'video' ? 'video/mp4' : 'image/jpeg'),
+            fileSize: att.file_size || 0,
+            attOrder: i + 1,
+          });
         }
+        alert('Etapa adicionada!');
+        resetForm();
+        await loadAll();
       }
-    } catch (err: any) {
-      alert(err.message || 'Erro ao salvar etapa.');
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Erro ao salvar etapa.');
     } finally {
       setSavingStep(false);
     }
@@ -354,13 +367,12 @@ export default function EditTrainingStepsScreen() {
   // Excluir etapa
   const handleDeleteStep = (stepId: string, title: string) => {
     const confirmDelete = async () => {
-      if (!id) return;
-      const { success, error } = await stepsService.deleteStep(stepId, id);
-      if (success) {
+      try {
+        await stepsService.deleteStep(stepId);
         setSteps((prev) => prev.filter((s) => s.id !== stepId));
         if (editingStepId === stepId) resetForm();
-      } else {
-        alert(error || 'Erro ao excluir etapa.');
+      } catch (err: unknown) {
+        alert(err instanceof Error ? err.message : 'Erro ao excluir etapa.');
       }
     };
 
@@ -376,24 +388,42 @@ export default function EditTrainingStepsScreen() {
     }
   };
 
+  // Persistir nova ordenação das etapas no backend
+  const persistStepOrder = async (previousSteps: TrainingStep[], nextSteps: TrainingStep[]) => {
+    setSteps(nextSteps);
+    if (!id) return;
+    try {
+      const reordered = await stepsService.reorderSteps(
+        id,
+        nextSteps.map((s) => s.id),
+      );
+      setSteps(reordered);
+    } catch (err: unknown) {
+      setSteps(previousSteps);
+      alert(err instanceof Error ? err.message : 'Erro ao salvar nova ordenação das etapas.');
+    }
+  };
+
   // Mover etapa para cima
-  const moveUp = (index: number) => {
+  const moveUp = async (index: number) => {
     if (index === 0) return;
-    const newSteps = [...steps];
-    const temp = newSteps[index];
-    newSteps[index] = newSteps[index - 1];
-    newSteps[index - 1] = temp;
-    setSteps(newSteps);
+    const previousSteps = steps;
+    const nextSteps = [...steps];
+    const temp = nextSteps[index];
+    nextSteps[index] = nextSteps[index - 1];
+    nextSteps[index - 1] = temp;
+    await persistStepOrder(previousSteps, nextSteps);
   };
 
   // Mover etapa para baixo
-  const moveDown = (index: number) => {
-    if (index === steps.length - 1) return;
-    const newSteps = [...steps];
-    const temp = newSteps[index];
-    newSteps[index] = newSteps[index + 1];
-    newSteps[index + 1] = temp;
-    setSteps(newSteps);
+  const moveDown = async (index: number) => {
+    if (index >= steps.length - 1) return;
+    const previousSteps = steps;
+    const nextSteps = [...steps];
+    const temp = nextSteps[index];
+    nextSteps[index] = nextSteps[index + 1];
+    nextSteps[index + 1] = temp;
+    await persistStepOrder(previousSteps, nextSteps);
   };
 
   if (loading) {
@@ -491,8 +521,18 @@ export default function EditTrainingStepsScreen() {
             <Text style={styles.label}>Imagem de Capa</Text>
             {detailCoverUrl ? (
               <View style={styles.coverPreviewBox}>
-                <Image source={{ uri: detailCoverUrl }} style={styles.coverPreviewImage} resizeMode="cover" />
-                <TouchableOpacity style={styles.removeCoverBtn} onPress={() => setDetailCoverUrl('')}>
+                <Image
+                  source={{ uri: detailCoverPreviewUrl || detailCoverUrl }}
+                  style={styles.coverPreviewImage}
+                  resizeMode="cover"
+                />
+                <TouchableOpacity
+                  style={styles.removeCoverBtn}
+                  onPress={() => {
+                    setDetailCoverUrl('');
+                    setDetailCoverPreviewUrl('');
+                  }}
+                >
                   <Ionicons name="trash" size={16} color="#FFF" />
                   <Text style={styles.removeCoverText}>Remover</Text>
                 </TouchableOpacity>
@@ -713,8 +753,11 @@ export default function EditTrainingStepsScreen() {
                           size={20}
                           color={att.file_type === 'video' ? '#9B59B6' : colors.primary}
                         />
-                        {att.file_type === 'image' && att.file_url ? (
-                          <Image source={{ uri: att.file_url }} style={styles.miniThumbnail} />
+                        {att.file_type === 'image' && (resolvedThumbUrls[att.id] || att.file_url) ? (
+                          <Image
+                            source={{ uri: resolvedThumbUrls[att.id] || att.file_url }}
+                            style={styles.miniThumbnail}
+                          />
                         ) : null}
                         <View style={{ flex: 1 }}>
                           <Text style={styles.attFileName} numberOfLines={1}>

@@ -1,25 +1,35 @@
-// ==============================================================================
-// Tela: Documentação Swagger / OpenAPI (SwaggerScreen)
-// Exibe a especificação interativa da API do SmartGuide
-// ==============================================================================
-
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform, Linking } from 'react-native';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../constants/colors';
-import { Header } from '../components/Header';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Footer } from '../components/Footer';
+import { Header } from '../components/Header';
+import { colors } from '../constants/colors';
+import { useAuth } from '../context/AuthContext';
+import { getApiBaseUrl } from '../services/serverConfig.service';
 
 export default function SwaggerScreen() {
   const router = useRouter();
-  const docsUrl = `${(process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000').replace(/\/+$/, '')}/docs`;
+  const { serverUrl } = useAuth();
+  const [apiBaseUrl, setApiBaseUrl] = useState(serverUrl || '');
+
+  useEffect(() => {
+    let active = true;
+    void getApiBaseUrl().then((resolved) => {
+      if (active) setApiBaseUrl(resolved);
+    });
+    return () => {
+      active = false;
+    };
+  }, [serverUrl]);
+
+  const docsUrl = `${apiBaseUrl.replace(/\/+$/, '')}/docs`;
 
   const handleOpenInNewTab = () => {
-    if (Platform.OS === 'web') {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
       window.open(docsUrl, '_blank', 'noopener,noreferrer');
     } else {
-      Linking.openURL(docsUrl);
+      void Linking.openURL(docsUrl);
     }
   };
 
@@ -27,7 +37,6 @@ export default function SwaggerScreen() {
     <View style={styles.container}>
       <Header />
 
-      {/* Barra de Navegação Superior */}
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={18} color={colors.text} />
@@ -36,7 +45,7 @@ export default function SwaggerScreen() {
 
         <TouchableOpacity style={styles.openExternalBtn} onPress={handleOpenInNewTab}>
           <Ionicons name="open-outline" size={16} color={colors.primaryHover} />
-          <Text style={styles.openExternalBtnText}>Abrir em Nova Guia ↗</Text>
+          <Text style={styles.openExternalBtnText}>Abrir em Nova Guia</Text>
         </TouchableOpacity>
       </View>
 
@@ -49,7 +58,7 @@ export default function SwaggerScreen() {
               height: '100%',
               border: 'none',
             }}
-            title="SmartGuide Swagger Documentation"
+            title="Smart Guide Swagger Documentation"
           />
         </View>
       ) : (
@@ -57,7 +66,7 @@ export default function SwaggerScreen() {
           <Ionicons name="book-outline" size={64} color={colors.primary} />
           <Text style={styles.mobileTitle}>Documentação Swagger (OpenAPI)</Text>
           <Text style={styles.mobileSubtitle}>
-            A documentação interativa com Swagger UI está otimizada para navegadores web.
+            A documentação interativa com Swagger UI está disponível no navegador.
           </Text>
           <TouchableOpacity style={styles.mobileOpenBtn} onPress={handleOpenInNewTab}>
             <Text style={styles.mobileOpenBtnText}>Abrir Documentação no Navegador</Text>
@@ -80,8 +89,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderLight,
@@ -92,62 +101,59 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   backBtnText: {
-    fontSize: 14,
     color: colors.text,
+    fontSize: 14,
     fontWeight: '600',
   },
   openExternalBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 4,
-    borderWidth: 1,
-    borderColor: colors.primaryLight,
     backgroundColor: colors.primaryLight,
   },
   openExternalBtnText: {
-    fontSize: 13,
     color: colors.primaryHover,
+    fontSize: 13,
     fontWeight: '600',
   },
   iframeContainer: {
     flex: 1,
-    width: '100%',
   },
   mobileFallback: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 32,
+    padding: 24,
+    gap: 12,
   },
   mobileTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 18,
+    fontWeight: '700',
     color: colors.text,
-    marginTop: 16,
-    marginBottom: 8,
+    textAlign: 'center',
   },
   mobileSubtitle: {
     fontSize: 14,
     color: colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 24,
     maxWidth: 340,
   },
   mobileOpenBtn: {
+    marginTop: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     backgroundColor: colors.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 4,
   },
   mobileOpenBtnText: {
-    color: '#FFF',
+    color: colors.textInverse,
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
 });

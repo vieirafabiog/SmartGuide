@@ -3,7 +3,7 @@
 // Busca colaboradores com delayOutput (debounce) e gerencia níveis de acesso
 // ==============================================================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -18,10 +18,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../../constants/colors';
-import { useAuth } from '../../../context/AuthContext';
-import { sharingService } from '../../../services/sharing.service';
+import { sharingService, ShareableUser } from '../../../services/sharing.service';
 import { trainingsService } from '../../../services/trainings.service';
-import { Training, TrainingPermission, PermissionLevel, Profile } from '../../../types/database';
+import { Training, TrainingPermission, PermissionLevel } from '../../../types/database';
 
 // Descrições de cada nível de permissão
 const PERMISSION_LABELS: Record<PermissionLevel, { label: string; desc: string; color: string }> = {
@@ -45,7 +44,6 @@ const PERMISSION_LABELS: Record<PermissionLevel, { label: string; desc: string; 
 export default function ShareTrainingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { user } = useAuth();
   const insets = useSafeAreaInsets();
 
   const topPadding = Platform.OS !== 'web' ? insets.top + 10 : 16;
@@ -55,40 +53,48 @@ export default function ShareTrainingScreen() {
   const [permissions, setPermissions] = useState<TrainingPermission[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Busca de colaboradores com delayOutput
+  // Busca de colaboradores com debounce
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Profile[]>([]);
+  const [searchResults, setSearchResults] = useState<ShareableUser[]>([]);
   const [searching, setSearching] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
+  const [selectedUser, setSelectedUser] = useState<ShareableUser | null>(null);
 
   // Nível de acesso a conceder
   const [invitePermission, setInvitePermission] = useState<PermissionLevel>('viewer');
   const [inviting, setInviting] = useState(false);
 
   // Carrega os dados do treinamento e permissões
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!id) return;
     try {
       setLoading(true);
       const [trainingData, permsData] = await Promise.all([
         trainingsService.getTrainingById(id),
-        sharingService.getTrainingPermissions(id),
+        sharingService.getPermissions(id),
       ]);
       setTraining(trainingData);
-      setPermissions(permsData);
+      setPermissions(permsData.permissions);
     } catch (error) {
       console.error('Erro ao carregar compartilhamentos:', error);
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    loadData();
   }, [id]);
 
-  // Efeito de delayOutput (debounce de 350ms)
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (!cancelled) {
+        void loadData();
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [loadData]);
+
+  // Debounce de 350ms
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedQuery(searchQuery);
@@ -97,8 +103,9 @@ export default function ShareTrainingScreen() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Executa busca de colaboradores quando debouncedQuery muda
+  // Executa busca de usuários quando debouncedQuery muda
   useEffect(() => {
+    let cancelled = false;
     const fetchUsers = async () => {
       const q = debouncedQuery.trim();
       if (!q || selectedUser) {
@@ -106,29 +113,31 @@ export default function ShareTrainingScreen() {
         return;
       }
 
-      const targetCompanyId = training?.company_id || user?.company_id || '';
       try {
         setSearching(true);
-        const results = await sharingService.searchCompanyUsers(targetCompanyId, q);
-        setSearchResults(results);
+        const results = await sharingService.searchUsers(q);
+        if (!cancelled) setSearchResults(results);
       } catch (err) {
         console.error('Erro ao buscar colaboradores:', err);
       } finally {
-        setSearching(false);
+        if (!cancelled) setSearching(false);
       }
     };
 
     fetchUsers();
-  }, [debouncedQuery, selectedUser, training, user]);
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedQuery, selectedUser]);
 
-  // Seleciona um colaborador na lista de sugestões
-  const handleSelectUser = (profile: Profile) => {
-    setSelectedUser(profile);
+  // Seleciona um usuário na lista de sugestões
+  const handleSelectUser = (candidate: ShareableUser) => {
+    setSelectedUser(candidate);
     setSearchQuery('');
     setSearchResults([]);
   };
 
-  // Limpa o colaborador selecionado para buscar novamente
+  // Limpa o usuário selecionado para buscar novamente
   const handleClearSelected = () => {
     setSelectedUser(null);
     setSearchQuery('');
@@ -137,46 +146,30 @@ export default function ShareTrainingScreen() {
 
   // Concede ou atualiza acesso ao treinamento
   const handleInvite = async () => {
-    const emailToShare = selectedUser ? selectedUser.email : searchQuery.trim();
-    if (!emailToShare) {
-      alert('Selecione ou informe um colaborador.');
+    if (!id || !selectedUser) {
+      alert('Selecione um colaborador na lista de busca para conceder acesso.');
       return;
     }
 
     try {
       setInviting(true);
-      const companyId = training?.company_id || user?.company_id || '';
-      const targetParam = selectedUser
-        ? { id: selectedUser.id, name: selectedUser.name, email: selectedUser.email }
-        : emailToShare;
+      const perm = await sharingService.grantPermission(id, selectedUser.id, invitePermission);
+      setPermissions((prev) => {
+        const existingIdx = prev.findIndex((p) => p.user_id === perm.user_id);
+        if (existingIdx !== -1) {
+          const updated = [...prev];
+          updated[existingIdx] = perm;
+          return updated;
+        }
+        return [...prev, perm];
+      });
 
-      const { perm, error } = await sharingService.shareWithUser(
-        id,
-        targetParam,
-        invitePermission,
-        companyId
-      );
-
-      if (error || !perm) {
-        alert(error || 'Erro ao compartilhar treinamento.');
-      } else {
-        // Atualiza a lista de permissões localmente sem recarregar tudo
-        setPermissions((prev) => {
-          const existingIdx = prev.findIndex((p) => p.user_id === perm.user_id);
-          if (existingIdx !== -1) {
-            const updated = [...prev];
-            updated[existingIdx] = perm;
-            return updated;
-          }
-          return [...prev, perm];
-        });
-
-        const targetName = perm.user?.name || perm.user?.email || 'Colaborador';
-        handleClearSelected();
-        alert(`Acesso concedido com sucesso para ${targetName}!`);
-      }
-    } catch (err: any) {
-      alert(err.message || 'Erro ao convidar usuário.');
+      const targetName = perm.user?.name || perm.user?.email || selectedUser.name || 'Colaborador';
+      handleClearSelected();
+      alert(`Acesso concedido com sucesso para ${targetName}!`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao convidar usuário.';
+      alert(msg);
     } finally {
       setInviting(false);
     }
@@ -184,18 +177,19 @@ export default function ShareTrainingScreen() {
 
   // Remove o acesso de um usuário ao treinamento
   const handleRemove = async (perm: TrainingPermission) => {
-    // Não permite remover o criador original do treinamento
+    if (!id) return;
     if (training && perm.user_id === training.created_by) {
       alert('Não é possível remover o criador original do treinamento.');
       return;
     }
 
     const doRemove = async () => {
-      const { success, error } = await sharingService.removePermission(perm.id);
-      if (success) {
+      try {
+        await sharingService.removePermission(id, perm.user_id);
         setPermissions((prev) => prev.filter((p) => p.id !== perm.id));
-      } else {
-        alert(error || 'Erro ao remover acesso.');
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Erro ao remover acesso.';
+        alert(msg);
       }
     };
 
@@ -251,7 +245,7 @@ export default function ShareTrainingScreen() {
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Conceder Acesso</Text>
         <Text style={styles.sectionDesc}>
-          Digite o nome ou e-mail de um colaborador da empresa para localizá-lo e conceder acesso.
+          Digite o nome ou e-mail de um usuário cadastrado para localizá-lo e conceder acesso.
         </Text>
 
         {/* Campo de Busca / Selecionado */}
@@ -383,12 +377,9 @@ export default function ShareTrainingScreen() {
 
         {/* Botão de Conceder Acesso */}
         <TouchableOpacity
-          style={[
-            styles.inviteBtn,
-            (!selectedUser && !searchQuery.trim()) && styles.inviteBtnDisabled,
-          ]}
+          style={[styles.inviteBtn, !selectedUser && styles.inviteBtnDisabled]}
           onPress={handleInvite}
-          disabled={inviting || (!selectedUser && !searchQuery.trim())}
+          disabled={inviting || !selectedUser}
           activeOpacity={0.8}
         >
           {inviting ? (

@@ -1,22 +1,39 @@
-// ==============================================================================
-// Componente: FilePicker (Seletor de Arquivos para Upload)
-// Permite selecionar imagens e vídeos no navegador ou no celular
-// ==============================================================================
-
-import React, { useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import React, { useRef } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { colors } from '../constants/colors';
-import { validateMediaFile } from '../utils/mediaCompressor';
+import type { NativeUploadFile } from '../services/storage.service';
+import {
+  ALLOWED_IMAGE_EXTENSIONS,
+  ALLOWED_VIDEO_EXTENSIONS,
+  validateMediaFile,
+} from '../utils/mediaCompressor';
+
+export type PickedFileItem = File | NativeUploadFile;
 
 interface FilePickerProps {
-  onFilesSelected: (files: File[]) => void;
-  accept?: string; // 'image/*' ou 'video/*' ou 'image/*,video/*'
+  onFilesSelected: (files: PickedFileItem[]) => void;
+  accept?: string;
   multiple?: boolean;
   label?: string;
   isUploading?: boolean;
   buttonText?: string;
   iconName?: keyof typeof Ionicons.glyphMap;
+}
+
+function getExtension(fileName: string): string {
+  const lower = fileName.toLowerCase();
+  const idx = lower.lastIndexOf('.');
+  return idx !== -1 ? lower.slice(idx) : '';
 }
 
 export const FilePicker: React.FC<FilePickerProps> = ({
@@ -30,43 +47,95 @@ export const FilePicker: React.FC<FilePickerProps> = ({
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const handlePress = () => {
-    if (Platform.OS === 'web') {
-      if (fileInputRef.current) {
-        fileInputRef.current.click();
+  const allowedCategory: 'image' | 'video' | 'any' =
+    accept === 'image/*' ? 'image' : accept === 'video/*' ? 'video' : 'any';
+
+  const handleNativePick = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert(
+        'Permissão necessária',
+        'Permita o acesso à galeria para selecionar imagens ou vídeos.',
+      );
+      return;
+    }
+
+    const mediaTypes: ImagePicker.MediaType[] =
+      allowedCategory === 'image'
+        ? ['images']
+        : allowedCategory === 'video'
+          ? ['videos']
+          : ['images', 'videos'];
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes,
+      allowsMultipleSelection: multiple,
+      quality: 0.9,
+    });
+
+    if (result.canceled || !result.assets?.length) {
+      return;
+    }
+
+    const selected: NativeUploadFile[] = [];
+    for (const asset of result.assets) {
+      const isVideo = asset.type === 'video';
+      const fallbackExt = isVideo ? 'mp4' : 'jpg';
+      const fileName = asset.fileName?.trim() || `media_${Date.now()}.${fallbackExt}`;
+      const ext = getExtension(fileName);
+
+      if (allowedCategory === 'image' && isVideo) continue;
+      if (allowedCategory === 'video' && !isVideo) continue;
+
+      if (
+        ext &&
+        !ALLOWED_IMAGE_EXTENSIONS.includes(ext) &&
+        !ALLOWED_VIDEO_EXTENSIONS.includes(ext)
+      ) {
+        Alert.alert('Arquivo não suportado', `O arquivo "${fileName}" não é permitido.`);
+        continue;
       }
-    } else {
-      // No mobile nativo pode usar expo-document-picker ou expo-image-picker
-      alert('Upload de arquivos disponível diretamente via interface Web.');
+
+      selected.push({
+        uri: asset.uri,
+        name: fileName,
+        type: asset.mimeType || (isVideo ? 'video/mp4' : 'image/jpeg'),
+      });
+    }
+
+    if (selected.length > 0) {
+      onFilesSelected(selected);
     }
   };
 
-  const handleInputChange = (event: any) => {
+  const handlePress = () => {
+    if (Platform.OS === 'web') {
+      fileInputRef.current?.click();
+      return;
+    }
+    void handleNativePick();
+  };
+
+  const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = event.target?.files;
-    if (fileList && fileList.length > 0) {
-      const filesArray = Array.from(fileList) as File[];
+    if (!fileList || fileList.length === 0) return;
 
-      const allowedCategory: 'image' | 'video' | 'any' =
-        accept === 'image/*' ? 'image' : accept === 'video/*' ? 'video' : 'any';
-
-      const validFiles: File[] = [];
-      for (const file of filesArray) {
-        const validation = validateMediaFile(file, file.name, allowedCategory);
-        if (!validation.valid) {
-          alert(validation.error || 'Arquivo não suportado.');
-          continue;
-        }
-        validFiles.push(file);
+    const validFiles: File[] = [];
+    for (const file of Array.from(fileList)) {
+      const validation = validateMediaFile(file, file.name, allowedCategory);
+      if (!validation.valid) {
+        Alert.alert('Arquivo inválido', validation.error || 'Arquivo não suportado.');
+        continue;
       }
+      validFiles.push(file);
+    }
 
-      if (validFiles.length > 0) {
-        onFilesSelected(validFiles);
-      }
+    if (validFiles.length > 0) {
+      onFilesSelected(validFiles);
+    }
 
-      // Reseta o input para permitir selecionar o mesmo arquivo novamente se desejar
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -74,10 +143,9 @@ export const FilePicker: React.FC<FilePickerProps> = ({
     <View style={styles.container}>
       {label && <Text style={styles.label}>{label}</Text>}
 
-      {/* Input HTML oculto para Web */}
       {Platform.OS === 'web' && (
         <input
-          ref={fileInputRef as any}
+          ref={fileInputRef}
           type="file"
           accept={accept}
           multiple={multiple}
@@ -120,20 +188,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    backgroundColor: colors.primaryLight,
     borderWidth: 1,
     borderColor: colors.primary,
     borderStyle: 'dashed',
-    backgroundColor: colors.primaryLight,
+    borderRadius: 4,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 4,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   buttonText: {
-    fontSize: 13,
-    fontWeight: '700',
     color: colors.primaryHover,
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

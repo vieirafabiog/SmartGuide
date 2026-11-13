@@ -64,7 +64,8 @@
           "cameraPermission": "Permitir uso da câmera para escanear o QR Code do servidor Smart Guide."
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-video"
     ]
   }
 }

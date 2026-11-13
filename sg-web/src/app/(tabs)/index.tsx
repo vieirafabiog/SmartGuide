@@ -70,13 +70,13 @@ export default function HomeScreen() {
   const isTablet = width >= 600 && width < 900;
   const cardWidth = isWebWide ? '31.5%' : isTablet ? '48%' : '100%';
 
-  // Carrega as categorias da empresa
+  // Carrega as categorias da instância
   const loadCategories = async () => {
     try {
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         return;
       }
-      const data = await categoriesService.getCategories(user?.company_id);
+      const data = await categoriesService.getCategories();
       setCategories(data);
     } catch (error) {
       console.error('Erro ao carregar categorias:', error);
@@ -112,16 +112,14 @@ export default function HomeScreen() {
       );
 
       const fetchPromise = trainingsService.getTrainings({
-        companyId: user?.company_id,
-        categoryId: selectedCategoryId,
-        search: debouncedSearchText,
+        categoryId: selectedCategoryId ?? undefined,
+        search: debouncedSearchText || undefined,
         status: 'published',
-        userId: user?.id,
       });
 
       const raceRes = await Promise.race([fetchPromise, timeoutPromise]);
 
-      if ('isTimeout' in raceRes) {
+      if (!Array.isArray(raceRes) && 'isTimeout' in raceRes) {
         console.warn('[HomeScreen] Rede lenta ou inacessível. Ativando exibição offline.');
         setIsOfflineMode(true);
         if (offlineTrainings.length > 0) {
@@ -129,12 +127,13 @@ export default function HomeScreen() {
         }
       } else {
         setIsOfflineMode(false);
-        if (raceRes?.trainings && raceRes.trainings.length > 0) {
-          setTrainings(raceRes.trainings);
-        } else if (offlineTrainings.length > 0 && (!raceRes || raceRes.trainings.length === 0)) {
+        const fetched = Array.isArray(raceRes) ? raceRes : [];
+        if (fetched.length > 0) {
+          setTrainings(fetched);
+        } else if (offlineTrainings.length > 0 && !selectedCategoryId && !debouncedSearchText) {
           setTrainings(offlineTrainings);
         } else {
-          setTrainings(raceRes?.trainings || []);
+          setTrainings(fetched);
         }
       }
     } catch (error) {
@@ -148,16 +147,32 @@ export default function HomeScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user?.company_id, selectedCategoryId, debouncedSearchText]);
+  }, [selectedCategoryId, debouncedSearchText]);
 
   useEffect(() => {
-    loadCategories();
-    loadDownloadedStatus();
-  }, [user?.company_id]);
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (!cancelled) {
+        void loadCategories();
+        void loadDownloadedStatus();
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
-    loadTrainings();
-    loadDownloadedStatus();
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (!cancelled) {
+        void loadTrainings();
+        void loadDownloadedStatus();
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [loadTrainings]);
 
   const onRefresh = () => {
@@ -183,7 +198,7 @@ export default function HomeScreen() {
         </View>
 
         {/* Botão de Criação para Administradores e Criadores */}
-        {(user?.role === 'company_admin' || user?.role === 'super_admin' || user?.role === 'creator') && (
+        {(user?.role === 'admin' || user?.role === 'creator') && (
           <TouchableOpacity
             style={styles.newTrainingBtn}
             onPress={() => router.push('/training/create')}

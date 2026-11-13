@@ -8,6 +8,7 @@ import React, { useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../constants/colors';
+import { sanitizeRichTextHtml } from '../utils/htmlSanitizer';
 
 interface RichTextEditorProps {
   value: string;
@@ -26,11 +27,12 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
 }) => {
   const editorRef = useRef<HTMLDivElement | null>(null);
 
-  // Sincroniza o valor inicial ou externo com o conteúdo do editor WYSIWYG
+  // Sincroniza o valor inicial ou externo com o conteúdo sanitizado no editor WYSIWYG
   useEffect(() => {
     if (Platform.OS === 'web' && editorRef.current) {
-      if (editorRef.current.innerHTML !== (value || '')) {
-        editorRef.current.innerHTML = value || '';
+      const sanitized = sanitizeRichTextHtml(value || '');
+      if (editorRef.current.innerHTML !== sanitized) {
+        editorRef.current.innerHTML = sanitized;
       }
     }
   }, [value]);
@@ -38,18 +40,17 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   // Executa comandos de formatação visual padrão do navegador (WYSIWYG)
   const executeCommand = (command: string, arg: string | undefined = undefined) => {
     if (Platform.OS === 'web' && typeof document !== 'undefined') {
-      // Garante o foco no editor antes de executar o comando
       editorRef.current?.focus();
       document.execCommand(command, false, arg);
       if (editorRef.current) {
-        onChangeText(editorRef.current.innerHTML);
+        onChangeText(sanitizeRichTextHtml(editorRef.current.innerHTML));
       }
     }
   };
 
   const handleInput = () => {
     if (Platform.OS === 'web' && editorRef.current) {
-      onChangeText(editorRef.current.innerHTML);
+      onChangeText(sanitizeRichTextHtml(editorRef.current.innerHTML));
     }
   };
 

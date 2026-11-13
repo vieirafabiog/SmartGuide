@@ -3,7 +3,7 @@
 // Réplica aprimorada do Power Apps com modo Visão Geral e Modo Estudo (Player)
 // ==============================================================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -15,9 +15,12 @@ import {
   Platform,
   Modal,
   Alert,
+  StyleProp,
+  ViewStyle,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { colors } from '../../../constants/colors';
 import { useAuth } from '../../../context/AuthContext';
 import { trainingsService } from '../../../services/trainings.service';
@@ -25,10 +28,37 @@ import { stepsService } from '../../../services/steps.service';
 import { progressService } from '../../../services/progress.service';
 import { offlineService } from '../../../services/offline.service';
 import { pdfService } from '../../../services/pdf.service';
+import { storageService } from '../../../services/storage.service';
 import { Training, TrainingStep, StepAttachment } from '../../../types/database';
 import { RichTextViewer } from '../../../components/RichTextViewer';
 import { Header } from '../../../components/Header';
 import { Footer } from '../../../components/Footer';
+
+function NativeVideoPlayer({
+  uri,
+  autoPlay = false,
+  style,
+}: {
+  uri: string;
+  autoPlay?: boolean;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const player = useVideoPlayer(uri, (instance) => {
+    instance.loop = false;
+    if (autoPlay) {
+      instance.play();
+    }
+  });
+
+  return (
+    <VideoView
+      player={player}
+      style={style}
+      nativeControls
+      contentFit="contain"
+    />
+  );
+}
 
 export default function TrainingPlayerScreen() {
   const { id, fromTrainings } = useLocalSearchParams<{ id: string; fromTrainings?: string }>();
@@ -40,6 +70,8 @@ export default function TrainingPlayerScreen() {
 
   const [training, setTraining] = useState<Training | null>(null);
   const [steps, setSteps] = useState<TrainingStep[]>([]);
+  const [resolvedCoverUrl, setResolvedCoverUrl] = useState('');
+  const [resolvedMediaUrls, setResolvedMediaUrls] = useState<Record<string, string>>({});
   const [completedStepIds, setCompletedStepIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -64,7 +96,7 @@ export default function TrainingPlayerScreen() {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
 
   // Carrega os dados do treinamento, etapas e progresso do usuário (com suporte offline instantâneo e auto-update)
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!id) return;
     try {
       // 1. Tenta carregar IMEDIATAMENTE do armazenamento offline local
@@ -75,7 +107,7 @@ export default function TrainingPlayerScreen() {
       if (offlineData) {
         setTraining(offlineData.training);
         setSteps(offlineData.steps);
-        setLoading(false); // Exibição instantânea! Zero espera quando offline!
+        setLoading(false);
       } else {
         setLoading(true);
       }
@@ -92,8 +124,8 @@ export default function TrainingPlayerScreen() {
       );
 
       const networkPromise = Promise.all([
-        trainingsService.getTrainingById(id, user?.id),
-        stepsService.getStepsByTrainingId(id),
+        trainingsService.getTrainingById(id),
+        stepsService.getSteps(id),
       ]);
 
       const raceResult = await Promise.race([networkPromise, timeoutPromise]);
@@ -113,8 +145,7 @@ export default function TrainingPlayerScreen() {
         return;
       }
 
-      // 4. Verificação de atualização automática quando online:
-      // Se já estava baixado, verifica se a versão do servidor tem modified at (updated_at) mais recente
+      // 4. Verificação de atualização automática quando online
       if (wasDownloaded && offlineData) {
         const serverUpdatedAt = onlineTraining.updated_at;
         const localUpdatedAt = offlineData.training.updated_at;
@@ -126,9 +157,6 @@ export default function TrainingPlayerScreen() {
             serverUpdatedAt !== localUpdatedAt);
 
         if (hasModifications) {
-          console.log(
-            `[AutoUpdate] Treinamento alterado no servidor! Servidor: ${serverUpdatedAt}, Local: ${localUpdatedAt}. Atualizando memória automaticamente...`
-          );
           setIsAutoUpdating(true);
           setAutoUpdateMessage('Identificadas alterações no treinamento. Atualizando...');
 
@@ -137,7 +165,7 @@ export default function TrainingPlayerScreen() {
               id,
               undefined,
               onlineTraining,
-              onlineSteps
+              onlineSteps,
             );
             if (syncRes.success) {
               const freshOffline = await offlineService.getOfflineTraining(id);
@@ -166,9 +194,11 @@ export default function TrainingPlayerScreen() {
       // 5. Progresso: carrega se usuário logado e acompanhamento ativo
       if (user && canTrackProgress) {
         try {
-          const completedIds = await progressService.getCompletedStepIds(user.id, id);
-          setCompletedStepIds(completedIds);
-        } catch {}
+          const summary = await progressService.getTrainingProgress(id);
+          setCompletedStepIds(summary.steps.filter((s) => s.completed).map((s) => s.stepId));
+        } catch {
+          // Progresso opcional caso não esteja autenticado ou offline
+        }
       }
     } catch (error) {
       console.error('Erro ao carregar dados do treinamento:', error);
@@ -181,11 +211,45 @@ export default function TrainingPlayerScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, user, canTrackProgress]);
 
   useEffect(() => {
-    loadData();
-  }, [id, user, fromTrainings]);
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (!cancelled) {
+        void loadData();
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [loadData]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function resolveUrls() {
+      if (training?.cover_url) {
+        const cover = await storageService.resolveMediaUrl(training.cover_url);
+        if (!cancelled) setResolvedCoverUrl(cover);
+      } else if (!cancelled) {
+        setResolvedCoverUrl('');
+      }
+
+      const nextMedia: Record<string, string> = {};
+      await Promise.all(
+        steps.flatMap((step) =>
+          (step.attachments ?? []).map(async (att) => {
+            nextMedia[att.id] = await storageService.resolveMediaUrl(att.file_url);
+          }),
+        ),
+      );
+      if (!cancelled) setResolvedMediaUrls(nextMedia);
+    }
+    resolveUrls();
+    return () => {
+      cancelled = true;
+    };
+  }, [training?.cover_url, steps]);
 
   // Ação: Baixar treinamento completo para uso offline
   const handleDownloadOffline = async () => {
@@ -207,8 +271,8 @@ export default function TrainingPlayerScreen() {
       } else {
         alert(res.error || 'Erro ao baixar treinamento.');
       }
-    } catch (err: any) {
-      alert(err.message || 'Erro inesperado no download offline.');
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Erro inesperado no download offline.');
     } finally {
       setIsDownloading(false);
       setDownloadProgressMsg('');
@@ -222,8 +286,8 @@ export default function TrainingPlayerScreen() {
     try {
       setIsPrinting(true);
       await pdfService.generateTrainingPdf(training, steps);
-    } catch (err: any) {
-      alert(err.message || 'Não foi possível gerar o PDF do treinamento.');
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Não foi possível gerar o PDF do treinamento.');
     } finally {
       setIsPrinting(false);
     }
@@ -247,7 +311,7 @@ export default function TrainingPlayerScreen() {
     }
   };
 
-  // Alterna o status de conclusão da etapa atual (apenas se aberto pela tela de treinamentos)
+  // Alterna o status de conclusão da etapa atual
   const toggleCurrentStepCompletion = async () => {
     if (!canTrackProgress) {
       alert('Modo de Visualização: O registro de progresso só é computado quando o treinamento é aberto pela tela de Treinamentos.');
@@ -265,7 +329,15 @@ export default function TrainingPlayerScreen() {
       newStatus ? [...prev, currentStep.id] : prev.filter((sId) => sId !== currentStep.id)
     );
 
-    await progressService.toggleStepProgress(user.id, id, currentStep.id, newStatus);
+    try {
+      await progressService.setStepCompleted(id, currentStep.id, newStatus);
+    } catch (err: unknown) {
+      // Rollback em caso de erro
+      setCompletedStepIds((prev) =>
+        isCompleted ? [...prev, currentStep.id] : prev.filter((sId) => sId !== currentStep.id)
+      );
+      alert(err instanceof Error ? err.message : 'Erro ao registrar progresso.');
+    }
   };
 
   if (loading) {
@@ -293,8 +365,7 @@ export default function TrainingPlayerScreen() {
   const currentStep = steps[currentStepIndex];
   const isCurrentStepCompleted = currentStep ? completedStepIds.includes(currentStep.id) : false;
   const isCreatorOrAdmin =
-    user?.role === 'super_admin' ||
-    user?.role === 'company_admin' ||
+    user?.role === 'admin' ||
     user?.role === 'creator' ||
     training.created_by === user?.id;
 
@@ -303,17 +374,11 @@ export default function TrainingPlayerScreen() {
     if (training.status === 'archived') {
       const confirmUnarchive = async () => {
         try {
-          const { success, error } = await trainingsService.updateTraining(training.id, {
-            status: 'draft',
-          });
-          if (!success) {
-            alert(error || 'Não foi possível desarquivar o treinamento.');
-            return;
-          }
-          setTraining((prev) => (prev ? { ...prev, status: 'draft' } : null));
-          router.push(`/training/${training.id}/edit` as any);
-        } catch {
-          alert('Erro ao desarquivar treinamento.');
+          const updated = await trainingsService.updateTraining(training.id, { status: 'draft' });
+          setTraining(updated);
+          router.push(`/training/${training.id}/edit` as never);
+        } catch (err: unknown) {
+          alert(err instanceof Error ? err.message : 'Erro ao desarquivar treinamento.');
         }
       };
 
@@ -417,7 +482,7 @@ export default function TrainingPlayerScreen() {
             <View style={styles.bannerContainer}>
               {training.cover_url ? (
                 <Image
-                  source={{ uri: training.cover_url }}
+                  source={{ uri: resolvedCoverUrl || training.cover_url }}
                   style={styles.coverImage}
                   resizeMode="cover"
                 />
@@ -619,13 +684,15 @@ export default function TrainingPlayerScreen() {
                     Toque na mídia para expandir em tela cheia
                   </Text>
                 </View>
-                {currentStep.attachments.map((att) => (
+                {currentStep.attachments.map((att) => {
+                  const mediaUri = resolvedMediaUrls[att.id] || att.file_url;
+                  return (
                   <View key={att.id} style={styles.attItem}>
                     {att.file_type === 'video' ? (
                       <View style={styles.videoCard}>
                         {Platform.OS === 'web' ? (
                           <video
-                            src={att.file_url}
+                            src={mediaUri}
                             controls
                             style={{
                               width: '100%',
@@ -635,10 +702,15 @@ export default function TrainingPlayerScreen() {
                             }}
                           />
                         ) : (
-                          <View style={styles.videoPlaceholder}>
-                            <Ionicons name="play-circle" size={48} color={colors.primary} />
-                            <Text style={styles.videoPlaceholderText}>Vídeo: {att.file_name}</Text>
-                          </View>
+                          <NativeVideoPlayer
+                            uri={mediaUri}
+                            style={{
+                              width: '100%',
+                              height: 240,
+                              borderRadius: 6,
+                              backgroundColor: '#0F172A',
+                            }}
+                          />
                         )}
                         <TouchableOpacity
                           style={styles.expandVideoBtn}
@@ -656,11 +728,11 @@ export default function TrainingPlayerScreen() {
                         activeOpacity={0.85}
                       >
                         <Image
-                          source={{ uri: att.file_url }}
+                          source={{ uri: mediaUri }}
                           style={styles.attImage}
                           resizeMode="contain"
                           onError={(e) =>
-                            console.warn('Erro ao carregar imagem:', att.file_url, e.nativeEvent.error)
+                            console.warn('Erro ao carregar imagem:', mediaUri, e.nativeEvent.error)
                           }
                         />
                         <View style={styles.expandBadge}>
@@ -678,7 +750,8 @@ export default function TrainingPlayerScreen() {
                       <Text style={styles.attFileName}>{att.file_name}</Text>
                     </View>
                   </View>
-                ))}
+                  );
+                })}
               </View>
             )}
 
@@ -801,7 +874,7 @@ export default function TrainingPlayerScreen() {
               {expandedMedia?.file_type === 'video' ? (
                 Platform.OS === 'web' ? (
                   <video
-                    src={expandedMedia.file_url}
+                    src={resolvedMediaUrls[expandedMedia.id] || expandedMedia.file_url}
                     controls
                     autoPlay
                     style={{
@@ -813,14 +886,24 @@ export default function TrainingPlayerScreen() {
                     }}
                   />
                 ) : (
-                  <View style={styles.videoPlaceholder}>
-                    <Ionicons name="play-circle" size={64} color="#FFF" />
-                    <Text style={styles.videoPlaceholderText}>{expandedMedia.file_name}</Text>
-                  </View>
+                  <NativeVideoPlayer
+                    uri={resolvedMediaUrls[expandedMedia.id] || expandedMedia.file_url}
+                    autoPlay
+                    style={{
+                      width: '92%',
+                      height: 360,
+                      borderRadius: 8,
+                      backgroundColor: '#000',
+                    }}
+                  />
                 )
               ) : (
                 <Image
-                  source={{ uri: expandedMedia?.file_url }}
+                  source={{
+                    uri: expandedMedia
+                      ? resolvedMediaUrls[expandedMedia.id] || expandedMedia.file_url
+                      : undefined,
+                  }}
                   style={styles.lightboxImage}
                   resizeMode="contain"
                 />

@@ -6,23 +6,25 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors } from '../constants/colors';
+import { sanitizeRichTextHtml } from '../utils/htmlSanitizer';
 
 interface RichTextViewerProps {
   content?: string | null;
 }
 
 export const RichTextViewer: React.FC<RichTextViewerProps> = ({ content }) => {
-  if (!content || content.trim() === '') {
+  const safeContent = sanitizeRichTextHtml(content || '');
+  if (!safeContent) {
     return <Text style={styles.emptyText}>Sem descrição ou conteúdo informado.</Text>;
   }
 
   // Se o conteúdo não tiver tags HTML, renderiza como texto puro
-  if (!content.includes('<') || !content.includes('>')) {
-    return <Text style={styles.paragraph}>{content}</Text>;
+  if (!safeContent.includes('<') || !safeContent.includes('>')) {
+    return <Text style={styles.paragraph}>{safeContent}</Text>;
   }
 
   // Divisão básica em parágrafos e quebras de linha
-  const cleanContent = content
+  const cleanContent = safeContent
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')

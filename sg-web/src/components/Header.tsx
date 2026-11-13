@@ -13,8 +13,7 @@ import { useAuth } from '../context/AuthContext';
 export const Header: React.FC = () => {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, signOut } = useAuth();
-  // Pega a altura da status bar para evitar sobreposição
+  const { user, instanceInfo, signOut } = useAuth();
   const insets = useSafeAreaInsets();
 
   const handleLogout = async () => {
@@ -22,7 +21,7 @@ export const Header: React.FC = () => {
     router.replace('/(auth)/login');
   };
 
-  const isCompanyAdmin = user?.role === 'company_admin' || user?.role === 'super_admin';
+  const isAdmin = user?.role === 'admin';
 
   // Altura extra no topo apenas em dispositivos móveis (não no web)
   const topPadding = Platform.OS !== 'web' ? insets.top : 0;
@@ -36,12 +35,16 @@ export const Header: React.FC = () => {
         activeOpacity={0.8}
       >
         <Image
-          source={require('../../assets/icon.png')}
+          source={
+            instanceInfo?.logoUrl
+              ? { uri: instanceInfo.logoUrl }
+              : require('../../assets/icon.png')
+          }
           style={styles.logoImage}
           resizeMode="contain"
         />
         <View>
-          <Text style={styles.appTitle}>Smart Guide</Text>
+          <Text style={styles.appTitle}>{instanceInfo?.name || 'Smart Guide'}</Text>
           <Text style={styles.appSubtitle}>Treinamentos Corporativos</Text>
         </View>
       </TouchableOpacity>
@@ -76,7 +79,7 @@ export const Header: React.FC = () => {
           </Text>
         </TouchableOpacity>
 
-        {isCompanyAdmin && (
+        {isAdmin && (
           <TouchableOpacity
             style={[styles.navBtn, pathname?.includes('admin') ? styles.navBtnActive : null]}
             onPress={() => router.push('/(tabs)/admin')}
@@ -105,7 +108,7 @@ export const Header: React.FC = () => {
                 styles.roleBadge,
                 user.role === 'creator'
                   ? { backgroundColor: '#EEF2FF' }
-                  : user.role === 'company_admin' || user.role === 'super_admin'
+                  : user.role === 'admin'
                   ? { backgroundColor: '#FEE2E2' }
                   : null,
               ]}
@@ -115,15 +118,13 @@ export const Header: React.FC = () => {
                   styles.roleBadgeText,
                   user.role === 'creator'
                     ? { color: '#4F46E5' }
-                    : user.role === 'company_admin' || user.role === 'super_admin'
+                    : user.role === 'admin'
                     ? { color: '#DC2626' }
                     : null,
                 ]}
               >
-                {user.role === 'super_admin'
-                  ? 'SUPER ADMIN'
-                  : user.role === 'company_admin'
-                  ? 'ADMIN EMPRESA'
+                {user.role === 'admin'
+                  ? 'ADMIN'
                   : user.role === 'creator'
                   ? 'CRIADOR'
                   : 'COLABORADOR'}

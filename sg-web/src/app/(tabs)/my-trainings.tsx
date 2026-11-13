@@ -64,7 +64,7 @@ export default function MyTrainingsScreen() {
         setDownloadedIds(allOffline.map((t) => t.id));
       }
       const offlineMyTrainings = allOffline.filter(
-        (t) => !user?.id || t.created_by === user.id || t.company_id === user.company_id
+        (t) => !user?.id || t.created_by === user.id
       );
 
       // Se estiver comprovadamente offline, exibe na hora sem esperar rede
@@ -85,15 +85,12 @@ export default function MyTrainingsScreen() {
       );
 
       const fetchPromise = trainingsService.getTrainings({
-        companyId: user?.company_id,
-        userId: user?.id,
-        onlyMyTrainings: true,
         status: selectedStatus === 'all' ? undefined : selectedStatus,
       });
 
       const raceRes = await Promise.race([fetchPromise, timeoutPromise]);
 
-      if ('isTimeout' in raceRes) {
+      if (!Array.isArray(raceRes) && 'isTimeout' in raceRes) {
         console.warn('[MyTrainingsScreen] Conexão lenta ou offline. Exibindo treinamentos locais.');
         setIsOfflineMode(true);
         if (offlineMyTrainings.length > 0) {
@@ -101,7 +98,12 @@ export default function MyTrainingsScreen() {
         }
       } else {
         setIsOfflineMode(false);
-        setTrainings(raceRes?.trainings || []);
+        const list = Array.isArray(raceRes) ? raceRes : [];
+        setTrainings(
+          user?.role === 'admin'
+            ? list
+            : list.filter((t) => !user?.id || t.created_by === user.id),
+        );
       }
     } catch (error) {
       console.error('Erro ao carregar meus treinamentos:', error);
@@ -114,37 +116,48 @@ export default function MyTrainingsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user?.company_id, user?.id, selectedStatus]);
+  }, [user, selectedStatus]);
 
   useEffect(() => {
-    loadMyTrainings();
-    loadDownloadedStatus();
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (!cancelled) {
+        void loadMyTrainings();
+        void loadDownloadedStatus();
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [loadMyTrainings]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadDownloadedStatus();
-    loadMyTrainings();
+    void loadDownloadedStatus();
+    void loadMyTrainings();
   };
 
   const handleDelete = (id: string, title: string) => {
     const confirmDelete = async () => {
-      const { success, error } = await trainingsService.deleteTraining(id);
-      if (success) {
+      try {
+        await trainingsService.deleteTraining(id);
         setTrainings((prev) => prev.filter((t) => t.id !== id));
-      } else {
-        alert(error || 'Erro ao excluir treinamento.');
+      } catch (err) {
+        Alert.alert(
+          'Erro',
+          err instanceof Error ? err.message : 'Erro ao excluir treinamento.',
+        );
       }
     };
 
     if (typeof window !== 'undefined' && window.confirm) {
       if (window.confirm(`Deseja realmente excluir o treinamento "${title}"?`)) {
-        confirmDelete();
+        void confirmDelete();
       }
     } else {
       Alert.alert('Excluir Treinamento', `Deseja realmente excluir o treinamento "${title}"?`, [
         { text: 'Cancelar', style: 'cancel' },
-        { text: 'Excluir', style: 'destructive', onPress: confirmDelete },
+        { text: 'Excluir', style: 'destructive', onPress: () => void confirmDelete() },
       ]);
     }
   };
@@ -154,20 +167,15 @@ export default function MyTrainingsScreen() {
     if (training.status === 'archived') {
       const confirmUnarchive = async () => {
         try {
-          const { success, error } = await trainingsService.updateTraining(training.id, {
+          await trainingsService.updateTraining(training.id, {
             status: 'draft',
           });
-          if (!success) {
-            alert(error || 'Não foi possível desarquivar o treinamento.');
-            return;
-          }
-          // Atualiza status local para 'draft'
           setTrainings((prev) =>
             prev.map((t) => (t.id === training.id ? { ...t, status: 'draft' } : t))
           );
           router.push(`/training/${training.id}/edit` as any);
         } catch {
-          alert('Erro ao desarquivar treinamento.');
+          Alert.alert('Erro', 'Não foi possível desarquivar o treinamento.');
         }
       };
 
@@ -301,7 +309,7 @@ export default function MyTrainingsScreen() {
           <Ionicons name="folder-open-outline" size={48} color={colors.textMuted} />
           <Text style={styles.emptyTitle}>Nenhum treinamento nesta categoria</Text>
           <Text style={styles.emptySubtitle}>
-            Clique em "Criar Treinamento" para elaborar um novo curso com etapas e anexos.
+            Clique em &quot;Criar Treinamento&quot; para elaborar um novo curso com etapas e anexos.
           </Text>
         </View>
       ) : (

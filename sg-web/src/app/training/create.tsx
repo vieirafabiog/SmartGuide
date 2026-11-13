@@ -1,6 +1,6 @@
 // ==============================================================================
 // Tela: Criar Treinamento (CreateTrainingScreen)
-// Status padrão "Rascunho", upload de capa via Supabase Storage e Rich Text WYSIWYG
+// Status padrão "Rascunho", upload de capa via sg-api Media Storage e Rich Text
 // ==============================================================================
 
 import React, { useState, useEffect } from 'react';
@@ -26,7 +26,7 @@ import { categoriesService } from '../../services/categories.service';
 import { storageService } from '../../services/storage.service';
 import { Category, TrainingStatus } from '../../types/database';
 import { RichTextEditor } from '../../components/RichTextEditor';
-import { FilePicker } from '../../components/FilePicker';
+import { FilePicker, PickedFileItem } from '../../components/FilePicker';
 
 export default function CreateTrainingScreen() {
   const router = useRouter();
@@ -39,6 +39,7 @@ export default function CreateTrainingScreen() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [coverUrl, setCoverUrl] = useState('');
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState('');
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   // Todo novo treinamento é sempre criado com status "draft" (Rascunho)
   const status: TrainingStatus = 'draft';
@@ -47,40 +48,45 @@ export default function CreateTrainingScreen() {
   const [availableCategories, setAvailableCategories] = useState<Category[]>([]);
   const [saving, setSaving] = useState(false);
 
-  // Verifica permissão para criar treinamentos (Super Admin, Admin da Empresa ou Criador)
+  // Verifica permissão para criar treinamentos (Admin ou Criador)
   useEffect(() => {
-    if (user && !['super_admin', 'company_admin', 'creator'].includes(user.role)) {
-      alert('Você não tem permissão para criar treinamentos. Solicite acesso ao administrador da sua empresa.');
+    if (user && !['admin', 'creator'].includes(user.role)) {
+      alert('Você não tem permissão para criar treinamentos. Solicite acesso a um administrador.');
       router.back();
     }
-  }, [user]);
+  }, [user, router]);
 
-  // Carrega categorias disponíveis da empresa
+  // Carrega categorias disponíveis da instância
   useEffect(() => {
+    let cancelled = false;
     async function fetchCategories() {
-      const cats = await categoriesService.getCategories(user?.company_id);
-      setAvailableCategories(cats);
+      try {
+        const cats = await categoriesService.getCategories();
+        if (!cancelled) setAvailableCategories(cats);
+      } catch (err) {
+        console.error('Erro ao carregar categorias:', err);
+      }
     }
     fetchCategories();
-  }, [user?.company_id]);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  // Upload da imagem de capa para o Supabase Storage
-  const handleCoverUpload = async (files: File[]) => {
+  // Upload da imagem de capa para o storage local/S3 da API
+  const handleCoverUpload = async (files: PickedFileItem[]) => {
     if (!files || files.length === 0) return;
     const file = files[0];
 
     try {
       setIsUploadingCover(true);
-      const companyId = user?.company_id || 'global';
-      const { url, error } = await storageService.uploadTrainingCover(file, file.name, companyId);
-
-      if (error || !url) {
-        alert(error || 'Erro ao carregar a imagem de capa.');
-      } else {
-        setCoverUrl(url);
-      }
-    } catch (err: any) {
-      alert(err.message || 'Erro inesperado no envio da imagem.');
+      const uploaded = await storageService.uploadMedia('training-covers', file);
+      setCoverUrl(uploaded.url);
+      const resolved = await storageService.resolveMediaUrl(uploaded.signedUrl || uploaded.url);
+      setCoverPreviewUrl(resolved);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao carregar a imagem de capa.';
+      alert(msg);
     } finally {
       setIsUploadingCover(false);
     }
@@ -102,30 +108,20 @@ export default function CreateTrainingScreen() {
 
     try {
       setSaving(true);
-      const companyId = user?.company_id || 'a0000000-0000-0000-0000-000000000001';
-      const userId = user?.id || 'd0000000-0000-0000-0000-000000000001';
+      const training = await trainingsService.createTraining({
+        title: title.trim(),
+        description: description.trim(),
+        coverUrl: coverUrl.trim() || null,
+        status,
+        isPublic,
+        categoryIds: selectedCategoryIds,
+      });
 
-      const { training, error } = await trainingsService.createTraining(
-        {
-          company_id: companyId,
-          created_by: userId,
-          title: title.trim(),
-          description: description.trim(),
-          cover_url: coverUrl.trim(),
-          status,
-          is_public: isPublic,
-        },
-        selectedCategoryIds
-      );
-
-      if (error || !training) {
-        alert(error || 'Erro ao criar treinamento.');
-      } else {
-        alert('Treinamento salvo como Rascunho! Agora adicione as etapas.');
-        router.replace(`/training/${training.id}/edit` as any);
-      }
-    } catch (err: any) {
-      alert(err.message || 'Erro ao salvar treinamento.');
+      alert('Treinamento salvo como Rascunho! Agora adicione as etapas.');
+      router.replace(`/training/${training.id}/edit` as never);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao salvar treinamento.';
+      alert(msg);
     } finally {
       setSaving(false);
     }
@@ -177,8 +173,18 @@ export default function CreateTrainingScreen() {
           <Text style={styles.label}>Imagem de Capa</Text>
           {coverUrl ? (
             <View style={styles.coverPreviewBox}>
-              <Image source={{ uri: coverUrl }} style={styles.coverPreviewImage} resizeMode="cover" />
-              <TouchableOpacity style={styles.removeCoverBtn} onPress={() => setCoverUrl('')}>
+              <Image
+                source={{ uri: coverPreviewUrl || coverUrl }}
+                style={styles.coverPreviewImage}
+                resizeMode="cover"
+              />
+              <TouchableOpacity
+                style={styles.removeCoverBtn}
+                onPress={() => {
+                  setCoverUrl('');
+                  setCoverPreviewUrl('');
+                }}
+              >
                 <Ionicons name="trash" size={16} color="#FFF" />
                 <Text style={styles.removeCoverText}>Remover Capa</Text>
               </TouchableOpacity>

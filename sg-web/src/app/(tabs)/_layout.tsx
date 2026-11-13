@@ -21,7 +21,7 @@ export default function TabsLayout() {
     if (!isLoading && !user) {
       router.replace('/(auth)/login');
     }
-  }, [user, isLoading]);
+  }, [user, isLoading, router]);
 
   if (isLoading) {
     return (
@@ -31,7 +31,7 @@ export default function TabsLayout() {
     );
   }
 
-  const isCompanyAdmin = user?.role === 'company_admin' || user?.role === 'super_admin';
+  const isAdmin = user?.role === 'admin';
 
   return (
     <View style={styles.container}>
@@ -81,7 +81,7 @@ export default function TabsLayout() {
             name="admin"
             options={{
               title: 'Gerenciamento',
-              href: isCompanyAdmin ? '/admin' : null,
+              href: isAdmin ? '/admin' : null,
               tabBarIcon: ({ color, size }) => (
                 <Ionicons name="settings-outline" color={color} size={size || 22} />
               ),
