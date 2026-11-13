@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { AppState, Platform } from 'react-native';
+import { syncLocaleFromProfile } from '@/i18n';
 import { checkMobileLicenseAccess } from '@/licensing/licenseGate';
 import { setUnauthorizedHandler } from '@/services/apiClient';
 import { authService } from '@/services/auth.service';
@@ -130,6 +131,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (profile) {
         setUser(profile);
         await AsyncStorage.setItem(CACHED_PROFILE_KEY, JSON.stringify(profile));
+        await syncLocaleFromProfile(profile.preferred_locale);
       } else if (profile === null) {
         // Explicit unauthenticated response (not timeout) clears stale cache
         const liveCheck = await authService.getCurrentProfile().catch(() => undefined);
@@ -171,6 +173,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     setUser(profile);
     await AsyncStorage.setItem(CACHED_PROFILE_KEY, JSON.stringify(profile));
+    await syncLocaleFromProfile(profile.preferred_locale);
     return { success: true };
   };
 
@@ -185,6 +188,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     setUser(profile);
     await AsyncStorage.setItem(CACHED_PROFILE_KEY, JSON.stringify(profile));
+    await syncLocaleFromProfile(profile.preferred_locale);
     return { success: true };
   };
 
@@ -198,6 +202,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (profile) {
       setUser(profile);
       await AsyncStorage.setItem(CACHED_PROFILE_KEY, JSON.stringify(profile));
+      await syncLocaleFromProfile(profile.preferred_locale);
     }
     return { success: true };
   };
@@ -207,6 +212,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (profile) {
       setUser(profile);
       await AsyncStorage.setItem(CACHED_PROFILE_KEY, JSON.stringify(profile));
+      await syncLocaleFromProfile(profile.preferred_locale);
     }
   };
 

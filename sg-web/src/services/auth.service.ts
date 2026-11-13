@@ -239,6 +239,18 @@ export const authService = {
     }
   },
 
+  async updatePreferredLocale(preferredLocale: SupportedLocale): Promise<void> {
+    try {
+      await apiClient.post(
+        '/api/auth/update-user',
+        { preferredLocale },
+        { timeoutMs: 5_000, skipUnauthorizedHook: true },
+      );
+    } catch {
+      // Non-fatal if offline or unauthenticated
+    }
+  },
+
   async signOut(): Promise<void> {
     try {
       await apiClient.post('/api/auth/sign-out', {}, { skipUnauthorizedHook: true });

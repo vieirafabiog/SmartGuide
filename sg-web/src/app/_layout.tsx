@@ -12,6 +12,7 @@ import { useFonts } from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
 import * as SplashScreen from 'expo-splash-screen';
 import { AuthProvider } from '../context/AuthContext';
+import { initI18n } from '../i18n';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -19,6 +20,10 @@ export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     ...Ionicons.font,
   });
+
+  useEffect(() => {
+    void initI18n();
+  }, []);
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
