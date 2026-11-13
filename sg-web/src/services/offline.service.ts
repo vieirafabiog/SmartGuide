@@ -8,6 +8,8 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Training, TrainingStep, StepAttachment } from '../types/database';
+import { getApiAuthToken } from './apiClient';
+import { storageService } from './storage.service';
 import { trainingsService } from './trainings.service';
 import { stepsService } from './steps.service';
 
@@ -100,7 +102,7 @@ export const offlineService = {
       if (!training || !steps) {
         const [t, s] = await Promise.all([
           trainingsService.getTrainingById(trainingId),
-          stepsService.getStepsByTrainingId(trainingId),
+          stepsService.getSteps(trainingId),
         ]);
         training = t;
         steps = s;
@@ -109,6 +111,8 @@ export const offlineService = {
       if (!training) {
         return { success: false, error: 'Treinamento não encontrado para download.' };
       }
+
+      const resolvedSteps = steps ?? [];
 
       onProgress?.('Estruturando dados locais...', 15);
 
@@ -133,7 +137,13 @@ export const offlineService = {
           try {
             const ext = training.cover_url.split('.').pop()?.split('?')[0] || 'jpg';
             const localCoverFile = `${baseDir}cover_${Date.now()}.${ext}`;
-            const downloadRes = await FileSystem.downloadAsync(training.cover_url, localCoverFile);
+            const resolvedCoverUrl = await storageService.resolveMediaUrl(training.cover_url);
+            const token = getApiAuthToken();
+            const downloadRes = await FileSystem.downloadAsync(
+              resolvedCoverUrl,
+              localCoverFile,
+              token ? { headers: { Authorization: `Bearer ${token}` } } : undefined,
+            );
             if (downloadRes.status === 200) {
               coverLocalUri = downloadRes.uri;
             }
@@ -145,7 +155,7 @@ export const offlineService = {
 
       // 3. Contabiliza total de anexos de mídia (imagens e vídeos)
       const allAttachments: { stepId: string; att: StepAttachment }[] = [];
-      steps.forEach((step) => {
+      resolvedSteps.forEach((step) => {
         (step.attachments || []).forEach((att) => {
           if (att.file_url) {
             allAttachments.push({ stepId: step.id, att });
@@ -172,7 +182,13 @@ export const offlineService = {
             const sanitizedName = `media_${att.id}_${Date.now()}.${ext}`;
             const targetUri = `${baseDir}${sanitizedName}`;
 
-            const res = await FileSystem.downloadAsync(att.file_url, targetUri);
+            const resolvedAttachmentUrl = await storageService.resolveMediaUrl(att.file_url);
+            const token = getApiAuthToken();
+            const res = await FileSystem.downloadAsync(
+              resolvedAttachmentUrl,
+              targetUri,
+              token ? { headers: { Authorization: `Bearer ${token}` } } : undefined,
+            );
             if (res.status === 200) {
               mediaMap[att.id] = res.uri;
               if (att.file_size) totalBytes += att.file_size;
@@ -192,7 +208,7 @@ export const offlineService = {
         cover_url: coverLocalUri || training.cover_url,
       };
 
-      const offlineSteps: TrainingStep[] = steps.map((step) => ({
+      const offlineSteps: TrainingStep[] = resolvedSteps.map((step) => ({
         ...step,
         attachments: (step.attachments || []).map((att) => ({
           ...att,

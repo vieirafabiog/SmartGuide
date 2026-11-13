@@ -1,62 +1,65 @@
-// ==============================================================================
-// Serviço de Progresso (Progress Service)
-// Rastreamento de conclusão de etapas pelos colaboradores via Supabase
-// ==============================================================================
+import type { StepProgress } from '@/types/database';
+import { apiClient } from './apiClient';
 
-import { supabase } from './supabase';
+export interface StepProgressSummaryItem {
+  stepId: string;
+  stepOrder: number;
+  title: string;
+  completed: boolean;
+  completedAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface TrainingProgressSummary {
+  trainingId: string;
+  userId: string;
+  totalSteps: number;
+  completedSteps: number;
+  percentage: number;
+  steps: StepProgressSummaryItem[];
+}
+
+interface ApiStepProgress {
+  id: string;
+  userId: string;
+  trainingId: string;
+  stepId: string;
+  completed: boolean;
+  completedAt: string | null;
+}
+
+function mapProgress(raw: ApiStepProgress): StepProgress {
+  return {
+    id: raw.id,
+    user_id: raw.userId,
+    training_id: raw.trainingId,
+    step_id: raw.stepId,
+    completed: raw.completed,
+    completed_at: raw.completedAt,
+  };
+}
 
 export const progressService = {
-  // Retorna os IDs das etapas concluídas pelo usuário no treinamento
-  async getCompletedStepIds(userId: string, trainingId: string): Promise<string[]> {
-    try {
-      const { data, error } = await supabase
-        .from('training_progress')
-        .select('step_id')
-        .eq('user_id', userId)
-        .eq('training_id', trainingId)
-        .eq('completed', true);
-
-      if (error) {
-        console.error('Erro ao buscar progresso:', error);
-        return [];
-      }
-
-      return (data || []).map((row) => row.step_id);
-    } catch (error) {
-      console.error('Erro inesperado ao buscar progresso:', error);
-      return [];
-    }
+  async getTrainingProgress(trainingId: string): Promise<TrainingProgressSummary> {
+    const res = await apiClient.get<{ summary: TrainingProgressSummary }>(
+      `/api/v1/trainings/${trainingId}/progress`,
+    );
+    return res.summary;
   },
 
-  // Marca ou desmarca uma etapa como concluída
-  async toggleStepProgress(
-    userId: string,
+  async setStepCompleted(
     trainingId: string,
     stepId: string,
-    completed: boolean
-  ): Promise<{ success: boolean; error: string | null }> {
-    try {
-      const { error } = await supabase
-        .from('training_progress')
-        .upsert(
-          {
-            user_id: userId,
-            training_id: trainingId,
-            step_id: stepId,
-            completed,
-            completed_at: completed ? new Date().toISOString() : null,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'user_id,step_id' }
-        );
+    completed: boolean,
+  ): Promise<{ progress: StepProgress; summary: TrainingProgressSummary }> {
+    const res = await apiClient.put<{
+      progress: ApiStepProgress;
+      summary: TrainingProgressSummary;
+    }>(`/api/v1/trainings/${trainingId}/steps/${stepId}/progress`, { completed });
 
-      if (error) {
-        return { success: false, error: error.message };
-      }
-
-      return { success: true, error: null };
-    } catch (err: any) {
-      return { success: false, error: err.message || 'Erro ao registrar progresso.' };
-    }
+    return {
+      progress: mapProgress(res.progress),
+      summary: res.summary,
+    };
   },
 };

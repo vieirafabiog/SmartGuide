@@ -11,7 +11,6 @@ export const ALLOWED_IMAGE_EXTENSIONS = [
   '.webp',
   '.gif',
   '.bmp',
-  '.svg',
   '.avif',
   '.heic',
   '.heif',

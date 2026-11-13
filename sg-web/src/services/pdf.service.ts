@@ -13,8 +13,9 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Asset } from 'expo-asset';
 import * as FileSystem from 'expo-file-system/legacy';
-import { supabase } from './supabase';
 import { Training, TrainingStep } from '../types/database';
+import { sanitizeRichTextHtml } from '../utils/htmlSanitizer';
+import { getSavedInstanceInfo } from './serverConfig.service';
 
 const LOGO_MODULE = require('../../assets/icon.png');
 
@@ -91,37 +92,13 @@ async function getLogoSrc(): Promise<string> {
   }
 }
 
-// Nome da empresa do treinamento (com limite de tempo para não travar sem internet)
-async function getCompanyName(companyId?: string | null): Promise<string> {
-  if (!companyId) return '';
-  const query = supabase
-    .from('companies')
-    .select('name')
-    .eq('id', companyId)
-    .maybeSingle()
-    .then(({ data }) => data?.name || '');
-  const timeout = new Promise<string>((resolve) => setTimeout(() => resolve(''), 3000));
+// Nome da instância Smart Guide salva localmente (offline-safe)
+async function getInstanceDisplayName(): Promise<string> {
   try {
-    return await Promise.race([query, timeout]);
+    const info = await getSavedInstanceInfo();
+    return info?.name || 'Smart Guide';
   } catch {
-    return '';
-  }
-}
-
-// Nome do criador do treinamento (com timeout de segurança)
-async function getCreatorName(userId?: string | null): Promise<string> {
-  if (!userId) return '';
-  const query = supabase
-    .from('profiles')
-    .select('name')
-    .eq('id', userId)
-    .maybeSingle()
-    .then(({ data }) => data?.name || '');
-  const timeout = new Promise<string>((resolve) => setTimeout(() => resolve(''), 3000));
-  try {
-    return await Promise.race([query, timeout]);
-  } catch {
-    return '';
+    return 'Smart Guide';
   }
 }
 
@@ -657,13 +634,12 @@ function buildCoverHtml(content: PdfContent): string {
 
         <!-- Caixa de Descrição / Objetivo -->
         ${
-          training.description
+          sanitizeRichTextHtml(training.description)
             ? `
           <div class="cover-desc-box">
             <div class="desc-title">Objetivo e Visão Geral</div>
-            <div class="desc-text">${training.description}</div>
-          </div>
-        `
+            <div class="desc-text">${sanitizeRichTextHtml(training.description)}</div>
+          </div>`
             : ''
         }
 
@@ -807,7 +783,7 @@ function buildStepPagesHtml(
               <div class="step-tag">Etapa ${stepIndex + 1} de ${totalSteps}${isContinuation ? ' • Continuação' : ''}</div>
               <h2 class="step-title">${escapeHtml(step.title)}</h2>
             </div>
-            ${!isContinuation && step.content ? `<div class="step-content">${step.content}</div>` : ''}
+            ${!isContinuation && sanitizeRichTextHtml(step.content) ? `<div class="step-content">${sanitizeRichTextHtml(step.content)}</div>` : ''}
             ${photosHtml}
           </div>
 
@@ -935,10 +911,15 @@ async function saveOnNative(html: string, title: string): Promise<void> {
 
 export const pdfService = {
   // Gera e baixa o PDF do treinamento completo (capa detalhada + índice + etapas)
-  async generateTrainingPdf(training: Training, steps: TrainingStep[]): Promise<void> {
-    const [companyName, creatorName, logoSrc, coverImageSrc] = await Promise.all([
-      getCompanyName(training.company_id),
-      getCreatorName(training.created_by),
+  async generateTrainingPdf(
+    training: Training,
+    steps: TrainingStep[],
+    options?: { creatorName?: string; instanceName?: string },
+  ): Promise<void> {
+    const [resolvedInstanceName, logoSrc, coverImageSrc] = await Promise.all([
+      options?.instanceName
+        ? Promise.resolve(options.instanceName)
+        : getInstanceDisplayName(),
       getLogoSrc(),
       training.cover_url ? toPrintableSrc(training.cover_url) : Promise.resolve(''),
     ]);
@@ -946,8 +927,8 @@ export const pdfService = {
     const html = await buildHtml({
       training,
       steps,
-      companyName,
-      creatorName,
+      companyName: resolvedInstanceName,
+      creatorName: options?.creatorName ?? '',
       logoSrc,
       coverImageSrc,
     });
